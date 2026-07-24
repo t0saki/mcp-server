@@ -1,6 +1,6 @@
 ---
 name: openviking-controlplane
-description: Manage OpenViking collections (OV libraries) from the command line with `ov-cp` — list / create / get / usage / get the data-plane API key / delete. Use when the user wants to provision or inspect an OpenViking library, fetch a library's data-plane API key, do the create→get-key cold-start, or otherwise drive the OpenViking control plane (topapi). Authenticates with an Ark AgentPlan ApiKey.
+description: Manage OpenViking collections (OV libraries) from the command line with `ov-cp` — list / create / get / update / usage / get the data-plane API key / delete, plus managing the users of an enterprise-tier library (list / register / update / delete). Use when the user wants to provision or inspect an OpenViking library, fetch a library's data-plane API key, do the create→get-key cold-start, manage a library's users, or otherwise drive the OpenViking control plane (topapi). Authenticates with an Ark AgentPlan ApiKey.
 ---
 
 # OpenViking Control Plane (`ov-cp`)
@@ -40,7 +40,14 @@ ov-cp get     <ResourceID>       # collection info (Status, models, version, ...
 ov-cp usage   <ResourceID>       # file counts / estimated cost
 ov-cp api-key <ResourceID>       # plaintext data-plane key {UserID, Role, ApiKey}
 ov-cp create  --name my_kb       # create a collection (see below)
+ov-cp update  <ResourceID> --description "..."   # update mutable fields
 ov-cp delete  <ResourceID> --yes # delete (irreversible; uninstalls the Helm release)
+
+# users of an enterprise-tier library (key must be associated with the library):
+ov-cp user list     <ResourceID>                     # users (ApiKey is masked)
+ov-cp user register <ResourceID> xiaohong --role user  # add a user (UserID + role)
+ov-cp user update   <ResourceID> xiaohong --role admin
+ov-cp user delete   <ResourceID> xiaohong --yes      # revoke a user's credential
 ```
 
 Output is JSON. Errors print `Error [Code]: Message` to stderr with exit code 1.
@@ -87,7 +94,12 @@ The returned `ApiKey` is the library's **data-plane** key. Use it as
 - Only `Authorization: Bearer` is accepted (no `X-API-Key`).
 - Read-only actions (list/get/usage/delete) are not gated by AgentPlan; create and
   api-key are.
-- `get`/`usage`/`api-key`/`delete` take a `ResourceID` (e.g. `ov-xxxxxxxx`).
+- `get`/`usage`/`api-key`/`delete`/`update` and all `user *` take a `ResourceID`
+  (e.g. `ov-xxxxxxxx`).
+- `user *` manages the multiple users of an **enterprise-tier** library and needs the
+  AgentPlan key to be **associated with that library** (else the backend rejects it).
+  `user list` returns each user's **masked** ApiKey; for a plaintext data-plane key
+  use `api-key`.
 - Extra headers: pass `-H 'Key: Value'` (repeatable) or set `VIKING_EXTRA_HEADERS`
   to a comma-separated `Key: Value` list — e.g. `-H 'x-tt-env: lujiakun'` for
   swim-lane routing. `Authorization` / `Content-Type` are protected and ignored.

@@ -4,16 +4,24 @@ OpenViking 控制面（topapi）的 MCP Server **与** CLI —— 用于管理 O
 （`Collection`）。两个前端共用同一套核心（`client.py`），新增一个能力即可同时被 MCP
 和 CLI 使用。
 
-覆盖 6 个核心控制面 Action：
+覆盖 11 个控制面 Action：
 
 | Action | MCP tool | CLI 命令 |
 |---|---|---|
 | `ListOpenVikingCollections` | `list_collections` | `ov-cp list` |
 | `CreateOpenVikingCollection` | `create_collection` ⚠️ | `ov-cp create` |
 | `GetOpenVikingCollection` | `get_collection` | `ov-cp get <rid>` |
+| `UpdateOpenVikingCollection` | `update_collection` | `ov-cp update <rid>` |
 | `DeleteOpenVikingCollection` | `delete_collection` ⚠️ | `ov-cp delete <rid>` |
 | `GetOpenVikingUsage` | `get_usage` | `ov-cp usage <rid>` |
 | `GetOpenVikingCollectionUserAccess` | `get_collection_api_key` | `ov-cp api-key <rid>` |
+| `ListOpenVikingCollectionUser` | `list_collection_users` | `ov-cp user list <rid>` |
+| `RegisterOpenVikingUser` | `register_collection_user` | `ov-cp user register <rid>` |
+| `UpdateOpenVikingUser` | `update_collection_user` | `ov-cp user update <rid> <uid>` |
+| `DeleteOpenVikingUser` | `delete_collection_user` ⚠️ | `ov-cp user delete <rid> <uid>` |
+
+`user *` 系列管理企业版库的多用户，要求 AgentPlan key **与目标库已关联**。`user list`
+返回的用户 `ApiKey` 是**掩码**，取明文数据面 key 走 `api-key`。
 
 ## 端点
 
@@ -74,6 +82,15 @@ uv run ov-cp create --name my_kb
 
 # 建企业版库（容量更高，按企业版费率计费）
 uv run ov-cp create --name my_kb --version enterprise
+
+# 更新库可变字段（只改传入的字段）
+uv run ov-cp update <ResourceID> --description "新描述"
+
+# 管理企业版库的用户（key 需与该库已关联）
+uv run ov-cp user list     <ResourceID>
+uv run ov-cp user register <ResourceID> xiaohong --role user
+uv run ov-cp user update   <ResourceID> xiaohong --role admin
+uv run ov-cp user delete   <ResourceID> xiaohong --yes
 
 # 删库（不可逆）
 uv run ov-cp delete <ResourceID> --yes

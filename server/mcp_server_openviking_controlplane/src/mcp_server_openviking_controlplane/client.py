@@ -172,6 +172,37 @@ class ControlPlaneClient:
     def get_collection(self, resource_id: str) -> Dict[str, Any]:
         return self._request("GetOpenVikingCollection", {"ResourceID": resource_id})
 
+    def update_collection(
+        self,
+        resource_id: str,
+        description: Optional[str] = None,
+        source: str = "agentplan",
+        vlm: Optional[Dict[str, Any]] = None,
+        embedding: Optional[Dict[str, Any]] = None,
+        openviking_version: Optional[str] = None,
+        extra: Optional[Dict[str, Any]] = None,
+    ) -> Dict[str, Any]:
+        """Update a collection's mutable fields (e.g. Description).
+
+        NOTE: the backend re-validates model credentials on every update, so VLM and
+        Embedding blocks are always sent (built like ``create_collection`` — for
+        ``source == "agentplan"`` the model credential falls back to the configured
+        AgentPlan key). Passing an empty/whitespace Description is a server-side no-op
+        (the field is only overwritten by a non-empty value). ``extra`` is merged
+        verbatim for forward-compatibility (e.g. an eventual ``PaymentConfig``)."""
+        body: Dict[str, Any] = {
+            "ResourceID": resource_id,
+            "VLM": self._model_block(vlm, source, DEFAULT_VLM_MODEL),
+            "Embedding": self._model_block(embedding, source, DEFAULT_EMBEDDING_MODEL),
+        }
+        if description is not None:
+            body["Description"] = description
+        if openviking_version is not None:
+            body["OpenvikingVersion"] = openviking_version
+        if extra:
+            body.update(extra)
+        return self._request("UpdateOpenVikingCollection", body)
+
     def delete_collection(self, resource_id: str) -> Dict[str, Any]:
         return self._request("DeleteOpenVikingCollection", {"ResourceID": resource_id})
 
@@ -189,6 +220,54 @@ class ControlPlaneClient:
         # (ListOpenVikingCollectionUser only returns a masked key.)
         return self._request(
             "GetOpenVikingCollectionUserAccess", {"ResourceID": resource_id}
+        )
+
+    # --- User management (enterprise-tier libraries: multi-user) -------------
+    # These require the AgentPlan key to be associated with the target library;
+    # operating on an unassociated library is rejected server-side. The ApiKey in
+    # a List response is MASKED — fetch the plaintext key via get_user_access.
+
+    def list_collection_users(self, resource_id: str) -> Dict[str, Any]:
+        # ListOpenVikingCollectionUser: users under the library (ApiKey masked).
+        return self._request(
+            "ListOpenVikingCollectionUser", {"ResourceID": resource_id}
+        )
+
+    def register_user(
+        self,
+        resource_id: str,
+        user_id: str,
+        role: Optional[str] = None,
+        extra: Optional[Dict[str, Any]] = None,
+    ) -> Dict[str, Any]:
+        # RegisterOpenVikingUser: create a new user under the library. UserID is
+        # required; Role is e.g. "admin" / "user".
+        body: Dict[str, Any] = {"ResourceID": resource_id, "UserID": user_id}
+        if role is not None:
+            body["Role"] = role
+        if extra:
+            body.update(extra)
+        return self._request("RegisterOpenVikingUser", body)
+
+    def update_user(
+        self,
+        resource_id: str,
+        user_id: str,
+        role: Optional[str] = None,
+        extra: Optional[Dict[str, Any]] = None,
+    ) -> Dict[str, Any]:
+        # UpdateOpenVikingUser: update a user's mutable fields (e.g. Role).
+        body: Dict[str, Any] = {"ResourceID": resource_id, "UserID": user_id}
+        if role is not None:
+            body["Role"] = role
+        if extra:
+            body.update(extra)
+        return self._request("UpdateOpenVikingUser", body)
+
+    def delete_user(self, resource_id: str, user_id: str) -> Dict[str, Any]:
+        # DeleteOpenVikingUser: remove a user from the library.
+        return self._request(
+            "DeleteOpenVikingUser", {"ResourceID": resource_id, "UserID": user_id}
         )
 
 

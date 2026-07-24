@@ -4,16 +4,26 @@ MCP server **and** CLI for the OpenViking control plane (topapi) — manage OV
 libraries (`Collection`). Both front-ends share one core (`client.py`), so a tool
 added once is available from MCP and the CLI alike.
 
-Covers the 6 core control-plane Actions:
+Covers the 11 control-plane Actions:
 
 | Action | MCP tool | CLI command |
 |---|---|---|
 | `ListOpenVikingCollections` | `list_collections` | `ov-cp list` |
 | `CreateOpenVikingCollection` | `create_collection` ⚠️ | `ov-cp create` |
 | `GetOpenVikingCollection` | `get_collection` | `ov-cp get <rid>` |
+| `UpdateOpenVikingCollection` | `update_collection` | `ov-cp update <rid>` |
 | `DeleteOpenVikingCollection` | `delete_collection` ⚠️ | `ov-cp delete <rid>` |
 | `GetOpenVikingUsage` | `get_usage` | `ov-cp usage <rid>` |
 | `GetOpenVikingCollectionUserAccess` | `get_collection_api_key` | `ov-cp api-key <rid>` |
+| `ListOpenVikingCollectionUser` | `list_collection_users` | `ov-cp user list <rid>` |
+| `RegisterOpenVikingUser` | `register_collection_user` | `ov-cp user register <rid>` |
+| `UpdateOpenVikingUser` | `update_collection_user` | `ov-cp user update <rid> <uid>` |
+| `DeleteOpenVikingUser` | `delete_collection_user` ⚠️ | `ov-cp user delete <rid> <uid>` |
+
+The `user *` actions manage the multiple users of an enterprise-tier library; they
+require the AgentPlan key to be **associated with the target library**. A user's
+`ApiKey` from `user list` is **masked** — fetch a plaintext data-plane key via
+`api-key`.
 
 ## Endpoint
 
@@ -79,6 +89,15 @@ uv run ov-cp create --name my_kb
 
 # create an enterprise-tier library (higher capacity, enterprise billing rates)
 uv run ov-cp create --name my_kb --version enterprise
+
+# update mutable fields (only the flags you pass change)
+uv run ov-cp update <ResourceID> --description "new description"
+
+# manage users of an enterprise-tier library (key must be associated with it)
+uv run ov-cp user list     <ResourceID>
+uv run ov-cp user register <ResourceID> xiaohong --role user
+uv run ov-cp user update   <ResourceID> xiaohong --role admin
+uv run ov-cp user delete   <ResourceID> xiaohong --yes
 
 # delete (irreversible)
 uv run ov-cp delete <ResourceID> --yes

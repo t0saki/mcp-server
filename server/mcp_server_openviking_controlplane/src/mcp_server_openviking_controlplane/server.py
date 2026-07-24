@@ -158,6 +158,131 @@ def create_collection(
 
 
 @mcp.tool()
+def update_collection(
+    resource_id: str,
+    description: Optional[str] = None,
+    openviking_version: Optional[str] = None,
+) -> Dict[str, Any]:
+    """Update mutable fields of an OpenViking collection (UpdateOpenVikingCollection).
+
+    Requires the AgentPlan key to be associated with the target library. CONFIRM WITH
+    THE USER before calling — this mutates a live library. The backend re-validates
+    model credentials on update, so VLM/Embedding are sent automatically using the
+    configured AgentPlan key. NOTE: an empty/whitespace description is a server-side
+    no-op — the description can only be overwritten with a non-empty value.
+
+    Args:
+        resource_id: target library ResourceID.
+        description: new description, length <= 65535 (non-empty to take effect).
+        openviking_version: new image version.
+
+    Returns:
+        {"Success": true}
+    """
+    try:
+        return get_client().update_collection(
+            resource_id,
+            description=description,
+            openviking_version=openviking_version,
+        )
+    except Exception as e:
+        logger.error(f"update_collection failed: {e}")
+        return _err(e)
+
+
+@mcp.tool()
+def list_collection_users(resource_id: str) -> Dict[str, Any]:
+    """List the users registered under one OpenViking collection.
+
+    Backed by ListOpenVikingCollectionUser. Requires the AgentPlan key to be
+    associated with the target library. NOTE: the ApiKey in each entry is MASKED;
+    to get a plaintext data-plane key use get_collection_api_key.
+
+    Args:
+        resource_id: target library ResourceID.
+
+    Returns:
+        {"UserList": [ {"UserID", "Role", "ApiKey" (masked)} ], "Total": N}
+    """
+    try:
+        return get_client().list_collection_users(resource_id)
+    except Exception as e:
+        logger.error(f"list_collection_users failed: {e}")
+        return _err(e)
+
+
+@mcp.tool()
+def register_collection_user(
+    resource_id: str, user_id: str, role: Optional[str] = None
+) -> Dict[str, Any]:
+    """Register a NEW user under an OpenViking collection (RegisterOpenVikingUser).
+
+    Requires the AgentPlan key to be associated with the target library. CONFIRM
+    WITH THE USER before calling — this creates a new credentialed user.
+
+    Args:
+        resource_id: target library ResourceID.
+        user_id: the UserID for the new user (unique within the library).
+        role: optional role, e.g. "admin" or "user".
+
+    Returns:
+        {"Success": true}
+    """
+    try:
+        return get_client().register_user(resource_id, user_id, role=role)
+    except Exception as e:
+        logger.error(f"register_collection_user failed: {e}")
+        return _err(e)
+
+
+@mcp.tool()
+def update_collection_user(
+    resource_id: str,
+    user_id: str,
+    role: Optional[str] = None,
+) -> Dict[str, Any]:
+    """Update a user under an OpenViking collection (UpdateOpenVikingUser).
+
+    Only the fields you pass (non-None) are changed. Requires the AgentPlan key to be
+    associated with the target library. CONFIRM WITH THE USER before calling.
+
+    Args:
+        resource_id: target library ResourceID.
+        user_id: the UserID to update.
+        role: optional new role, e.g. "admin" or "user".
+
+    Returns:
+        {"Success": true}
+    """
+    try:
+        return get_client().update_user(resource_id, user_id, role=role)
+    except Exception as e:
+        logger.error(f"update_collection_user failed: {e}")
+        return _err(e)
+
+
+@mcp.tool()
+def delete_collection_user(resource_id: str, user_id: str) -> Dict[str, Any]:
+    """⚠️ Delete a user from an OpenViking collection (DeleteOpenVikingUser).
+
+    CONFIRM WITH THE USER before calling. This revokes the user's credential and
+    cannot be undone. Requires the AgentPlan key to be associated with the library.
+
+    Args:
+        resource_id: target library ResourceID.
+        user_id: the UserID to delete.
+
+    Returns:
+        {"Success": true}
+    """
+    try:
+        return get_client().delete_user(resource_id, user_id)
+    except Exception as e:
+        logger.error(f"delete_collection_user failed: {e}")
+        return _err(e)
+
+
+@mcp.tool()
 def delete_collection(resource_id: str) -> Dict[str, Any]:
     """⚠️ IRREVERSIBLY deletes an OpenViking collection (uninstalls its Helm release).
 

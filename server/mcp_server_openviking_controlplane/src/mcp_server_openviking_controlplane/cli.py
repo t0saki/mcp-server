@@ -200,6 +200,98 @@ def create_cmd(
         raise _fail(e)
 
 
+@app.command("update")
+def update_cmd(
+    ctx: typer.Context,
+    resource_id: str = typer.Argument(..., help="Target library ResourceID."),
+    description: Optional[str] = typer.Option(None, help="New description, <=65535 chars."),
+    openviking_version: Optional[str] = typer.Option(None, help="New image version."),
+):
+    """Update mutable fields of a collection (only passed fields change)."""
+    client = _client(ctx)
+    try:
+        _print(
+            client.update_collection(
+                resource_id,
+                description=description,
+                openviking_version=openviking_version,
+            )
+        )
+    except Exception as e:
+        raise _fail(e)
+
+
+user_app = typer.Typer(
+    help="Manage users under a collection (enterprise-tier libraries). "
+    "All actions require the AgentPlan key to be associated with the library.",
+    no_args_is_help=True,
+)
+app.add_typer(user_app, name="user")
+
+
+@user_app.command("list")
+def user_list_cmd(
+    ctx: typer.Context,
+    resource_id: str = typer.Argument(..., help="Target library ResourceID."),
+):
+    """List users under a collection (ApiKey is masked; use `api-key` for plaintext)."""
+    client = _client(ctx)
+    try:
+        _print(client.list_collection_users(resource_id))
+    except Exception as e:
+        raise _fail(e)
+
+
+@user_app.command("register")
+def user_register_cmd(
+    ctx: typer.Context,
+    resource_id: str = typer.Argument(..., help="Target library ResourceID."),
+    user_id: str = typer.Argument(..., help="UserID for the new user (unique in library)."),
+    role: Optional[str] = typer.Option(None, help="Role, e.g. admin | user."),
+):
+    """Register a new user under a collection."""
+    client = _client(ctx)
+    try:
+        _print(client.register_user(resource_id, user_id, role=role))
+    except Exception as e:
+        raise _fail(e)
+
+
+@user_app.command("update")
+def user_update_cmd(
+    ctx: typer.Context,
+    resource_id: str = typer.Argument(..., help="Target library ResourceID."),
+    user_id: str = typer.Argument(..., help="Target UserID."),
+    role: Optional[str] = typer.Option(None, help="New role, e.g. admin | user."),
+):
+    """Update a user under a collection (only passed fields change)."""
+    client = _client(ctx)
+    try:
+        _print(client.update_user(resource_id, user_id, role=role))
+    except Exception as e:
+        raise _fail(e)
+
+
+@user_app.command("delete")
+def user_delete_cmd(
+    ctx: typer.Context,
+    resource_id: str = typer.Argument(..., help="Target library ResourceID."),
+    user_id: str = typer.Argument(..., help="Target UserID."),
+    yes: bool = typer.Option(False, "--yes", "-y", help="Skip the confirmation prompt."),
+):
+    """Delete a user from a collection (revokes its credential; irreversible)."""
+    client = _client(ctx)
+    if not yes:
+        typer.confirm(
+            f"Delete user {user_id} from collection {resource_id} (revokes its credential)?",
+            abort=True,
+        )
+    try:
+        _print(client.delete_user(resource_id, user_id))
+    except Exception as e:
+        raise _fail(e)
+
+
 @app.command("delete")
 def delete_cmd(
     ctx: typer.Context,
