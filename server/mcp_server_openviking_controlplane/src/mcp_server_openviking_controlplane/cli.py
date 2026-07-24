@@ -1,14 +1,17 @@
 import json
 import logging
-from typing import Any, Dict, Optional
+from typing import Any, Dict, List, Optional
 
+import click
 import typer
 
 from mcp_server_openviking_controlplane.client import ControlPlaneClient, ControlPlaneError
 from mcp_server_openviking_controlplane.config import (
     DEFAULT_EMBEDDING_MODEL,
     DEFAULT_VLM_MODEL,
+    VERSION_CHOICES,
     build_config,
+    parse_extra_headers,
 )
 
 logging.basicConfig(
@@ -81,11 +84,25 @@ def main_callback(
     project: Optional[str] = typer.Option(
         None, "--project", help="Default project (overrides OPENVIKING_PROJECT)."
     ),
+    header: Optional[List[str]] = typer.Option(
+        None, "--header", "-H",
+        help="Extra request header as 'Key: Value'; repeatable. Merged over "
+             "VIKING_EXTRA_HEADERS (CLI wins). E.g. -H 'x-tt-env: lujiakun' to "
+             "route into a swim-lane.",
+    ),
 ):
     """Stash a client factory on the context; commands build it on demand."""
 
     def _factory() -> ControlPlaneClient:
-        config = build_config(endpoint=endpoint, project=project, api_key=api_key)
+        extra_headers: Dict[str, str] = {}
+        for item in header or []:
+            extra_headers.update(parse_extra_headers(item))
+        config = build_config(
+            endpoint=endpoint,
+            project=project,
+            api_key=api_key,
+            extra_headers=extra_headers,
+        )
         return ControlPlaneClient(config)
 
     ctx.obj = _factory
@@ -139,7 +156,13 @@ def create_cmd(
     ctx: typer.Context,
     name: str = typer.Option(..., help="Library name ^[a-zA-Z][a-zA-Z0-9_]*$, <=64."),
     source: str = typer.Option("agentplan", help="Model source: agentplan | volcengine | codeplan."),
-    version: str = typer.Option("developer", help="Library version (currently only 'developer')."),
+    version: str = typer.Option(
+        "developer",
+        help="Library tier: developer (default) | enterprise "
+             "(higher capacity, billed at enterprise rates).",
+        click_type=click.Choice(VERSION_CHOICES),
+        metavar="[developer|enterprise]",
+    ),
     vlm_model: str = typer.Option(DEFAULT_VLM_MODEL, help="VLM ModelName."),
     vlm_api_key_id: Optional[str] = typer.Option(None, help="VLM ApiKeyID (exclusive with --vlm-api-key)."),
     vlm_api_key: Optional[str] = typer.Option(None, help="VLM ApiKey (defaults to --api-key when source=agentplan)."),

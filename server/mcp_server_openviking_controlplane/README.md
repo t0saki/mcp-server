@@ -52,6 +52,12 @@ later without touching the rest.
 | Control-plane endpoint (base URL) | `VIKING_ENDPOINT` | `--endpoint` / `-e` | `https://api.vikingdb.cn-beijing.volces.com/openviking` |
 | AgentPlan ApiKey | `AGENTPLAN_API_KEY` | `--api-key` / `-k` | — (required) |
 | Default project | `OPENVIKING_PROJECT` | `--project` | `default` |
+| Extra request headers | `VIKING_EXTRA_HEADERS` | `--header` / `-H` (repeatable) | — |
+
+`VIKING_EXTRA_HEADERS` is a comma-separated list of `Key: Value` pairs; `--header`
+takes one pair and may be repeated (CLI wins over env). Both are merged onto every
+request — useful for swim-lane routing, e.g. `-H 'x-tt-env: lujiakun'`. The
+`Authorization` and `Content-Type` headers are protected and cannot be overridden.
 
 ## CLI usage
 
@@ -70,6 +76,9 @@ uv run ov-cp api-key <ResourceID>
 # create (consumes paid quota; with source=agentplan only --name is needed —
 #         model names default, and the model ApiKey falls back to the configured key)
 uv run ov-cp create --name my_kb
+
+# create an enterprise-tier library (higher capacity, enterprise billing rates)
+uv run ov-cp create --name my_kb --version enterprise
 
 # delete (irreversible)
 uv run ov-cp delete <ResourceID> --yes

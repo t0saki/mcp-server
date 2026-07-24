@@ -48,6 +48,11 @@ Action 在 **path** 里（不走 `?Action=&Version=` query）。请求体是该 
 | 控制面 endpoint（base URL） | `VIKING_ENDPOINT` | `--endpoint` / `-e` | `https://api.vikingdb.cn-beijing.volces.com/openviking` |
 | AgentPlan ApiKey | `AGENTPLAN_API_KEY` | `--api-key` / `-k` | —（必填） |
 | 默认 project | `OPENVIKING_PROJECT` | `--project` | `default` |
+| 额外请求头 | `VIKING_EXTRA_HEADERS` | `--header` / `-H`（可重复） | — |
+
+`VIKING_EXTRA_HEADERS` 是逗号分隔的 `Key: Value` 列表；`--header` 每次带一对、可重复
+（CLI 优先于环境变量）。两者合并后加到每个请求上，常用于泳道路由，例如
+`-H 'x-tt-env: lujiakun'`。`Authorization`、`Content-Type` 为受保护头，不可覆盖。
 
 ## CLI 用法
 
@@ -66,6 +71,9 @@ uv run ov-cp api-key <ResourceID>
 # 建库（消耗付费配额；source=agentplan 时只需 --name，
 #       模型名取默认、模型 ApiKey 回落到配置的 key）
 uv run ov-cp create --name my_kb
+
+# 建企业版库（容量更高，按企业版费率计费）
+uv run ov-cp create --name my_kb --version enterprise
 
 # 删库（不可逆）
 uv run ov-cp delete <ResourceID> --yes

@@ -8,6 +8,7 @@ from mcp_server_openviking_controlplane.common.auth import AuthProvider, BearerT
 from mcp_server_openviking_controlplane.config import (
     DEFAULT_EMBEDDING_MODEL,
     DEFAULT_VLM_MODEL,
+    VERSION_CHOICES,
     ControlPlaneConfig,
     get_config,
 )
@@ -54,6 +55,9 @@ class ControlPlaneClient:
 
         headers = {"Content-Type": "application/json"}
         headers.update(self.auth.auth_headers("POST", path, {}, body_str))
+        # Caller-supplied extra headers (e.g. x-tt-env for swim-lane routing);
+        # protected keys (Authorization/Content-Type) are already filtered out.
+        headers.update(self.config.safe_extra_headers())
         headers = {k: v for k, v in headers.items() if k.lower() not in _DROP_HEADERS}
 
         url = f"{self.config.base_url}{path}"
@@ -142,6 +146,10 @@ class ControlPlaneClient:
         openviking_version: Optional[str] = None,
         extra: Optional[Dict[str, Any]] = None,
     ) -> Dict[str, Any]:
+        if version not in VERSION_CHOICES:
+            raise ValueError(
+                f"invalid version {version!r}; expected one of {', '.join(VERSION_CHOICES)}"
+            )
         # Multi-credential create format: top-level Source is omitted (each model
         # carries its source inside Credentials[]).
         body: Dict[str, Any] = {

@@ -20,6 +20,7 @@ Configure via env vars (CLI flags `-k` / `-e` / `--project` override them):
 | `AGENTPLAN_API_KEY` | Ark AgentPlan ApiKey (sent as `Authorization: Bearer`) | — (required) |
 | `VIKING_ENDPOINT` | Control-plane base URL | `https://api.vikingdb.cn-beijing.volces.com/openviking` |
 | `OPENVIKING_PROJECT` | Default project | `default` |
+| `VIKING_EXTRA_HEADERS` | Extra request headers, comma-separated `Key: Value` | — |
 
 ```bash
 export AGENTPLAN_API_KEY=ark-xxxxxxxx
@@ -56,11 +57,16 @@ ApiKey falls back to the configured AgentPlan key.
 
 ```bash
 ov-cp create --name my_kb
+# enterprise tier (higher capacity, enterprise billing rates):
+ov-cp create --name my_kb --version enterprise
 # other sources need explicit model creds:
 ov-cp create --name my_kb --source volcengine \
   --vlm-api-key-id <id> --vlm-endpoint-id <ep> \
   --emb-api-key-id <id> --emb-endpoint-id <ep>
 ```
+
+`--version` is `developer` (default) or `enterprise`; any other value is rejected
+locally before the request.
 
 ## Cold-start chain (create → use the library)
 
@@ -82,3 +88,6 @@ The returned `ApiKey` is the library's **data-plane** key. Use it as
 - Read-only actions (list/get/usage/delete) are not gated by AgentPlan; create and
   api-key are.
 - `get`/`usage`/`api-key`/`delete` take a `ResourceID` (e.g. `ov-xxxxxxxx`).
+- Extra headers: pass `-H 'Key: Value'` (repeatable) or set `VIKING_EXTRA_HEADERS`
+  to a comma-separated `Key: Value` list — e.g. `-H 'x-tt-env: lujiakun'` for
+  swim-lane routing. `Authorization` / `Content-Type` are protected and ignored.

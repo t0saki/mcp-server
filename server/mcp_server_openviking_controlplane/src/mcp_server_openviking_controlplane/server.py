@@ -130,7 +130,10 @@ def create_collection(
              AgentPlan key. ApiKeyID and ApiKey are mutually exclusive.
         embedding: optional embedding model config, same shape/defaults as vlm.
         source: model source — "agentplan" (default), "volcengine", or "codeplan".
-        version: library version, currently only "developer".
+        version: library tier — "developer" (default) or "enterprise". The
+                 enterprise tier has higher capacity and is billed at enterprise
+                 rates (25 AFP baseline / 200k files, then tiered per 100k files
+                 beyond). Any other value is rejected immediately with an error.
         project: project name; defaults to the configured project.
         description: optional, length <= 65535.
         openviking_version: optional image version.
