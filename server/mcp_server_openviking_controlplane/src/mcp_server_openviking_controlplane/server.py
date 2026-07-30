@@ -127,7 +127,8 @@ def create_collection(
     ⚠️ BILLING: if pay_type/seat_id are BOTH omitted, this client DEFAULTS the
     library to "agentplan_personal" (AFP deduction from the account's personal
     AgentPlan) — it deliberately does NOT fall through to the server default
-    volc_pay, which silently bills real money. Accounts with no personal plan
+    volc_pay, which would place the library on Volcano pay-as-you-go billing
+    without an explicit decision. Accounts with no personal plan
     (e.g. enterprise seat keys) must pass pay_type="agentplan_enterprise" +
     seat_id (or "volc_pay"); otherwise the library binds a non-existent
     personal plan, deduction fails and the library is disabled. Confirm the
@@ -150,9 +151,9 @@ def create_collection(
         pay_type: how the library is billed — "agentplan_personal" (personal
                   AgentPlan AFP deduction; the default when omitted),
                   "agentplan_enterprise" (an enterprise seat's AFP pays;
-                  requires seat_id), or "volc_pay" (Volcano pay-as-you-go, real
-                  money; must be chosen explicitly). NEVER guess personal vs
-                  enterprise from the key.
+                  requires seat_id), or "volc_pay" (Volcano pay-as-you-go,
+                  billed to the Volcano account; must be chosen explicitly).
+                  NEVER guess personal vs enterprise from the key.
         seat_id: the AgentPlan enterprise seat that pays (e.g. "seat-2026...").
                  Required with pay_type="agentplan_enterprise", forbidden
                  otherwise. The user must copy it manually from the Ark console
@@ -206,9 +207,9 @@ def update_collection(
         openviking_version: new image version.
         pay_type: new billing — "agentplan_personal" (personal AgentPlan AFP),
                   "agentplan_enterprise" (an enterprise seat's AFP; requires
-                  seat_id), or "volc_pay" (Volcano pay-as-you-go, real money).
-                  Always an explicit user choice; NEVER guess personal vs
-                  enterprise from the key.
+                  seat_id), or "volc_pay" (Volcano pay-as-you-go, billed to the
+                  Volcano account). Always an explicit user choice; NEVER guess
+                  personal vs enterprise from the key.
         seat_id: the AgentPlan enterprise seat that pays. Required with
                  pay_type="agentplan_enterprise", forbidden otherwise. Copied
                  manually by the user from the Ark console seat-management page;

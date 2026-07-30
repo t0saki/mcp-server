@@ -179,11 +179,11 @@ def create_cmd(
         None, "--pay-type",
         help="Billing: agentplan_personal (personal AgentPlan AFP deduction; the "
              "default when omitted) | agentplan_enterprise (an enterprise seat's "
-             "AFP pays; requires --seat-id) | volc_pay (Volcano pay-as-you-go — "
-             "REAL MONEY; must be chosen explicitly). ⚠️ Accounts with no "
-             "personal plan (e.g. enterprise seat keys) must not rely on the "
-             "default: the library would bind a non-existent personal plan, "
-             "deduction fails and the library is disabled.",
+             "AFP pays; requires --seat-id) | volc_pay (Volcano pay-as-you-go, "
+             "billed to the Volcano account; must be chosen explicitly). "
+             "⚠️ Accounts with no personal plan (e.g. enterprise seat keys) must "
+             "not rely on the default: the library would bind a non-existent "
+             "personal plan, deduction fails and the library is disabled.",
         click_type=click.Choice(PAY_TYPE_CHOICES),
         metavar="[agentplan_personal|agentplan_enterprise|volc_pay]",
     ),
@@ -203,8 +203,8 @@ def create_cmd(
 
     ⚠️ Billing: without --pay-type the library defaults to agentplan_personal
     (AFP deduction from the account's personal AgentPlan). Enterprise seat
-    keys must pass --pay-type agentplan_enterprise --seat-id seat-xxx; website
-    pay-as-you-go (real money) must be chosen explicitly with --pay-type volc_pay.
+    keys must pass --pay-type agentplan_enterprise --seat-id seat-xxx; Volcano
+    pay-as-you-go billing must be chosen explicitly with --pay-type volc_pay.
     """
     client = _client(ctx)
     if not (pay_type or seat_id):
@@ -247,8 +247,8 @@ def update_cmd(
         None, "--pay-type",
         help="Switch billing: agentplan_personal (personal AgentPlan AFP) | "
              "agentplan_enterprise (an enterprise seat's AFP; requires --seat-id) "
-             "| volc_pay (Volcano pay-as-you-go, real money). Omit to leave "
-             "billing untouched.",
+             "| volc_pay (Volcano pay-as-you-go, billed to the Volcano account). "
+             "Omit to leave billing untouched.",
         click_type=click.Choice(PAY_TYPE_CHOICES),
         metavar="[agentplan_personal|agentplan_enterprise|volc_pay]",
     ),

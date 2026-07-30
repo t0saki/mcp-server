@@ -91,10 +91,11 @@ ov-cp update <RID> --pay-type volc_pay                       # switch billing la
 ```
 
 - **Omitting `--pay-type` on create defaults to `agentplan_personal`** (AFP
-  deduction from the account's personal AgentPlan) — real-money `volc_pay` must
-  be an explicit choice. ⚠️ Accounts with no personal plan (e.g. enterprise seat
-  keys) must not rely on the default: the library binds a non-existent personal
-  plan, deduction fails and the library is disabled. The CLI prints a note.
+  deduction from the account's personal AgentPlan) — `volc_pay` (billed to the
+  Volcano account) must be an explicit choice. ⚠️ Accounts with no personal plan
+  (e.g. enterprise seat keys) must not rely on the default: the library binds a
+  non-existent personal plan, deduction fails and the library is disabled. The
+  CLI prints a note.
 - The personal/enterprise choice is otherwise explicit — never guess it from the key.
 - `--seat-id` is required with `agentplan_enterprise` and forbidden otherwise.
   The user must copy it manually from the Ark console seat-management page

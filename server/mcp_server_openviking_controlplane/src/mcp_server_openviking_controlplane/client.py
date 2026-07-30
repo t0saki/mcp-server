@@ -31,7 +31,8 @@ def build_payment_config(
     ``agentplan_enterprise`` / ``volc_pay``); the wire split into PayType +
     BusinessScenarios happens here. Returns None when nothing was given — the
     server then defaults the library to ``volc_pay``: Volcano pay-as-you-go,
-    billed in real money to the Volcano account, NOT AgentPlan AFP. The server
+    with charges billed directly to the Volcano account rather than deducted
+    from AgentPlan AFP. The server
     only checks a SeatId is non-empty, not that it exists: a typo surfaces at
     the next hourly deduction, after which the library is disabled.
     """
@@ -208,10 +209,11 @@ class ControlPlaneClient:
             )
         # Billing default: when the caller specifies nothing, bind the personal
         # AgentPlan instead of leaving PaymentConfig unset — the server-side
-        # default is volc_pay, which silently bills real money. A wrong personal
-        # binding is visible immediately and recoverable via update; silent cash
-        # billing is neither. Accounts without a personal plan must pass an
-        # explicit pay_type.
+        # default is volc_pay, which would put the library on Volcano
+        # pay-as-you-go billing without an explicit decision. A wrong personal
+        # binding is visible immediately and recoverable via update; unintended
+        # account billing is neither. Accounts without a personal plan must
+        # pass an explicit pay_type.
         if pay_type is None and seat_id is None:
             pay_type = "agentplan_personal"
         payment = build_payment_config(pay_type, seat_id)
