@@ -83,17 +83,19 @@ PAYS. Both `create` and `update` take the same two flags (`update` is how you
 switch billing later, or re-bind after a seat was unbound).
 
 ```bash
-ov-cp create --name my_kb --pay-type agentplan_personal      # personal AFP pays
+ov-cp create --name my_kb                                    # default: personal AFP pays
 ov-cp create --name my_kb --version enterprise \
   --pay-type agentplan_enterprise --seat-id seat-2026xxxx    # that seat's AFP pays
 ov-cp create --name my_kb --pay-type volc_pay                # explicit website PAYG
 ov-cp update <RID> --pay-type volc_pay                       # switch billing later
 ```
 
-- ⚠️ **Omitting `--pay-type` on create => the server defaults to `volc_pay`**:
-  Volcano pay-as-you-go, billed in REAL MONEY, not AgentPlan AFP. The CLI prints
-  a warning; always confirm with the user which billing they want.
-- The personal/enterprise choice is always explicit — never guess it from the key.
+- **Omitting `--pay-type` on create defaults to `agentplan_personal`** (AFP
+  deduction from the account's personal AgentPlan) — real-money `volc_pay` must
+  be an explicit choice. ⚠️ Accounts with no personal plan (e.g. enterprise seat
+  keys) must not rely on the default: the library binds a non-existent personal
+  plan, deduction fails and the library is disabled. The CLI prints a note.
+- The personal/enterprise choice is otherwise explicit — never guess it from the key.
 - `--seat-id` is required with `agentplan_enterprise` and forbidden otherwise.
   The user must copy it manually from the Ark console seat-management page
   (no lookup API). The server does NOT verify the seat exists — a typo only

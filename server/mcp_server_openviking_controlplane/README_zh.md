@@ -84,8 +84,11 @@ uv run ov-cp create --name my_kb
 uv run ov-cp create --name my_kb --version enterprise
 
 # 计费方式（--pay-type）：库由谁付钱——与 --version 正交（--version 只决定费率）。
-# ⚠️ 不传时服务端默认 volc_pay（火山官网按量，扣真金白银），不走 AgentPlan AFP 抵扣。
-uv run ov-cp create --name my_kb --pay-type agentplan_personal
+# 不传时默认 agentplan_personal（用账号的个人版 AgentPlan 做 AFP 抵扣）；
+# volc_pay（火山官网按量，扣真金白银）必须显式指定。⚠️ 企业版席位 key 不要依赖
+# 默认值（账号没有个人版套餐时抵扣会失败、库被停用），请显式传 agentplan_enterprise + --seat-id。
+uv run ov-cp create --name my_kb                       # 等价于 --pay-type agentplan_personal
+uv run ov-cp create --name my_kb --pay-type volc_pay
 uv run ov-cp create --name my_kb --version enterprise \
   --pay-type agentplan_enterprise --seat-id seat-2026xxxx
 # --seat-id：付费的企业版席位，需自行从方舟控制台「席位管理」页复制——

@@ -124,10 +124,14 @@ def create_collection(
     AgentPlan deduction activated (otherwise ProductUnordered). Do NOT call
     speculatively.
 
-    ⚠️ BILLING: if pay_type/seat_id are BOTH omitted, the server defaults the
-    library to volc_pay — Volcano pay-as-you-go, billed in REAL MONEY to the
-    Volcano account, NOT AgentPlan AFP. Ask the user which billing they want
-    before creating without them.
+    ⚠️ BILLING: if pay_type/seat_id are BOTH omitted, this client DEFAULTS the
+    library to "agentplan_personal" (AFP deduction from the account's personal
+    AgentPlan) — it deliberately does NOT fall through to the server default
+    volc_pay, which silently bills real money. Accounts with no personal plan
+    (e.g. enterprise seat keys) must pass pay_type="agentplan_enterprise" +
+    seat_id (or "volc_pay"); otherwise the library binds a non-existent
+    personal plan, deduction fails and the library is disabled. Confirm the
+    intended billing with the user before creating.
 
     Args:
         name: library name, regex ^[a-zA-Z][a-zA-Z0-9_]*$, length <= 64.
@@ -144,10 +148,11 @@ def create_collection(
         description: optional, length <= 65535.
         openviking_version: optional image version.
         pay_type: how the library is billed — "agentplan_personal" (personal
-                  AgentPlan AFP deduction), "agentplan_enterprise" (an enterprise
-                  seat's AFP pays; requires seat_id), or "volc_pay" (Volcano
-                  pay-as-you-go, real money). Always an explicit user choice —
-                  NEVER guess personal vs enterprise from the key.
+                  AgentPlan AFP deduction; the default when omitted),
+                  "agentplan_enterprise" (an enterprise seat's AFP pays;
+                  requires seat_id), or "volc_pay" (Volcano pay-as-you-go, real
+                  money; must be chosen explicitly). NEVER guess personal vs
+                  enterprise from the key.
         seat_id: the AgentPlan enterprise seat that pays (e.g. "seat-2026...").
                  Required with pay_type="agentplan_enterprise", forbidden
                  otherwise. The user must copy it manually from the Ark console

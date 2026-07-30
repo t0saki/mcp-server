@@ -91,9 +91,13 @@ uv run ov-cp create --name my_kb
 uv run ov-cp create --name my_kb --version enterprise
 
 # billing (--pay-type): who pays for the library — orthogonal to --version,
-# which only sets the rate. ⚠️ Omitted => the server defaults to volc_pay
-# (Volcano pay-as-you-go, REAL MONEY), not AgentPlan AFP deduction.
-uv run ov-cp create --name my_kb --pay-type agentplan_personal
+# which only sets the rate. Omitted => defaults to agentplan_personal (AFP
+# deduction from the account's personal AgentPlan). volc_pay (Volcano
+# pay-as-you-go, REAL MONEY) must be chosen explicitly. ⚠️ Enterprise seat
+# keys must not rely on the default (no personal plan => deduction fails and
+# the library is disabled) — pass agentplan_enterprise + --seat-id.
+uv run ov-cp create --name my_kb                       # = --pay-type agentplan_personal
+uv run ov-cp create --name my_kb --pay-type volc_pay
 uv run ov-cp create --name my_kb --version enterprise \
   --pay-type agentplan_enterprise --seat-id seat-2026xxxx
 # --seat-id: the enterprise seat that pays. Copy it manually from the Ark

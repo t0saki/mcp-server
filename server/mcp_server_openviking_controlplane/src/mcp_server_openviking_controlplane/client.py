@@ -206,6 +206,14 @@ class ControlPlaneClient:
             raise ValueError(
                 f"invalid version {version!r}; expected one of {', '.join(VERSION_CHOICES)}"
             )
+        # Billing default: when the caller specifies nothing, bind the personal
+        # AgentPlan instead of leaving PaymentConfig unset — the server-side
+        # default is volc_pay, which silently bills real money. A wrong personal
+        # binding is visible immediately and recoverable via update; silent cash
+        # billing is neither. Accounts without a personal plan must pass an
+        # explicit pay_type.
+        if pay_type is None and seat_id is None:
+            pay_type = "agentplan_personal"
         payment = build_payment_config(pay_type, seat_id)
         # Multi-credential create format: top-level Source is omitted (each model
         # carries its source inside Credentials[]).
