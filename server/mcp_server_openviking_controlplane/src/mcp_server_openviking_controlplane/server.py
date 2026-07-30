@@ -114,6 +114,8 @@ def create_collection(
     project: Optional[str] = None,
     description: Optional[str] = None,
     openviking_version: Optional[str] = None,
+    pay_type: Optional[str] = None,
+    seat_id: Optional[str] = None,
 ) -> Dict[str, Any]:
     """⚠️ Creates a NEW, BILLABLE OpenViking collection (provisions a Helm release).
 
@@ -121,6 +123,11 @@ def create_collection(
     per account, returns QuotaExceeded beyond that). Requires the account to have
     AgentPlan deduction activated (otherwise ProductUnordered). Do NOT call
     speculatively.
+
+    ⚠️ BILLING: if pay_type/seat_id are BOTH omitted, the server defaults the
+    library to volc_pay — Volcano pay-as-you-go, billed in REAL MONEY to the
+    Volcano account, NOT AgentPlan AFP. Ask the user which billing they want
+    before creating without them.
 
     Args:
         name: library name, regex ^[a-zA-Z][a-zA-Z0-9_]*$, length <= 64.
@@ -130,13 +137,23 @@ def create_collection(
              AgentPlan key. ApiKeyID and ApiKey are mutually exclusive.
         embedding: optional embedding model config, same shape/defaults as vlm.
         source: model source — "agentplan" (default), "volcengine", or "codeplan".
-        version: library tier — "developer" (default) or "enterprise". The
-                 enterprise tier has higher capacity and is billed at enterprise
-                 rates (25 AFP baseline / 200k files, then tiered per 100k files
-                 beyond). Any other value is rejected immediately with an error.
+        version: library tier — "developer" (default) or "enterprise". Sets the
+                 RATE only (enterprise: 25 AFP baseline / 200k files, then tiered
+                 per 100k files beyond); billing SOURCE is pay_type, orthogonal.
         project: project name; defaults to the configured project.
         description: optional, length <= 65535.
         openviking_version: optional image version.
+        pay_type: how the library is billed — "agentplan_personal" (personal
+                  AgentPlan AFP deduction), "agentplan_enterprise" (an enterprise
+                  seat's AFP pays; requires seat_id), or "volc_pay" (Volcano
+                  pay-as-you-go, real money). Always an explicit user choice —
+                  NEVER guess personal vs enterprise from the key.
+        seat_id: the AgentPlan enterprise seat that pays (e.g. "seat-2026...").
+                 Required with pay_type="agentplan_enterprise", forbidden
+                 otherwise. The user must copy it manually from the Ark console
+                 seat-management page — there is no lookup API, and the server
+                 does NOT verify the seat exists: a typo only surfaces at the
+                 next hourly deduction, which then disables the library.
 
     Returns:
         {"ResourceID": "...", "Success": true}
@@ -151,6 +168,8 @@ def create_collection(
             project=project,
             description=description,
             openviking_version=openviking_version,
+            pay_type=pay_type,
+            seat_id=seat_id,
         )
     except Exception as e:
         logger.error(f"create_collection failed: {e}")
@@ -162,19 +181,33 @@ def update_collection(
     resource_id: str,
     description: Optional[str] = None,
     openviking_version: Optional[str] = None,
+    pay_type: Optional[str] = None,
+    seat_id: Optional[str] = None,
 ) -> Dict[str, Any]:
     """Update mutable fields of an OpenViking collection (UpdateOpenVikingCollection).
 
     Requires the AgentPlan key to be associated with the target library. CONFIRM WITH
-    THE USER before calling — this mutates a live library. The backend re-validates
-    model credentials on update, so VLM/Embedding are sent automatically using the
-    configured AgentPlan key. NOTE: an empty/whitespace description is a server-side
-    no-op — the description can only be overwritten with a non-empty value.
+    THE USER before calling — this mutates a live library. This is also the way to
+    SWITCH BILLING (volc_pay ↔ AgentPlan deduction, or re-bind a seat after it
+    was unbound); omitting both pay_type and seat_id leaves billing untouched.
+    The backend re-validates model credentials on update, so VLM/Embedding are
+    sent automatically using the configured AgentPlan key. NOTE: an
+    empty/whitespace description is a server-side no-op — the description can
+    only be overwritten with a non-empty value.
 
     Args:
         resource_id: target library ResourceID.
         description: new description, length <= 65535 (non-empty to take effect).
         openviking_version: new image version.
+        pay_type: new billing — "agentplan_personal" (personal AgentPlan AFP),
+                  "agentplan_enterprise" (an enterprise seat's AFP; requires
+                  seat_id), or "volc_pay" (Volcano pay-as-you-go, real money).
+                  Always an explicit user choice; NEVER guess personal vs
+                  enterprise from the key.
+        seat_id: the AgentPlan enterprise seat that pays. Required with
+                 pay_type="agentplan_enterprise", forbidden otherwise. Copied
+                 manually by the user from the Ark console seat-management page;
+                 the server does NOT verify the seat exists.
 
     Returns:
         {"Success": true}
@@ -184,6 +217,8 @@ def update_collection(
             resource_id,
             description=description,
             openviking_version=openviking_version,
+            pay_type=pay_type,
+            seat_id=seat_id,
         )
     except Exception as e:
         logger.error(f"update_collection failed: {e}")

@@ -90,8 +90,20 @@ uv run ov-cp create --name my_kb
 # create an enterprise-tier library (higher capacity, enterprise billing rates)
 uv run ov-cp create --name my_kb --version enterprise
 
-# update mutable fields (only the flags you pass change)
+# billing (--pay-type): who pays for the library — orthogonal to --version,
+# which only sets the rate. ⚠️ Omitted => the server defaults to volc_pay
+# (Volcano pay-as-you-go, REAL MONEY), not AgentPlan AFP deduction.
+uv run ov-cp create --name my_kb --pay-type agentplan_personal
+uv run ov-cp create --name my_kb --version enterprise \
+  --pay-type agentplan_enterprise --seat-id seat-2026xxxx
+# --seat-id: the enterprise seat that pays. Copy it manually from the Ark
+# console seat-management page — the server does NOT verify the seat exists;
+# a typo only surfaces at the next hourly deduction, disabling the library.
+
+# update mutable fields (only the flags you pass change);
+# also switches billing (volc_pay <-> AgentPlan, or re-bind a seat)
 uv run ov-cp update <ResourceID> --description "new description"
+uv run ov-cp update <ResourceID> --pay-type volc_pay
 
 # manage users of an enterprise-tier library (key must be associated with it)
 uv run ov-cp user list     <ResourceID>

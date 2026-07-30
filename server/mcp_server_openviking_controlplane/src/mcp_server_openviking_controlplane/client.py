@@ -8,6 +8,7 @@ from mcp_server_openviking_controlplane.common.auth import AuthProvider, BearerT
 from mcp_server_openviking_controlplane.config import (
     DEFAULT_EMBEDDING_MODEL,
     DEFAULT_VLM_MODEL,
+    PAY_TYPE_MAP,
     VERSION_CHOICES,
     ControlPlaneConfig,
     get_config,
@@ -18,6 +19,59 @@ logger = logging.getLogger(__name__)
 # Headers we never replay verbatim: requests recomputes them, or a stale value
 # breaks the request. We always send a freshly serialized JSON body.
 _DROP_HEADERS = {"content-length", "connection", "accept-encoding"}
+
+
+def build_payment_config(
+    pay_type: Optional[str] = None,
+    seat_id: Optional[str] = None,
+) -> Optional[Dict[str, Any]]:
+    """Validate billing arguments and build the ``PaymentConfig`` request block.
+
+    ``pay_type`` is the flat user-facing enum (``agentplan_personal`` /
+    ``agentplan_enterprise`` / ``volc_pay``); the wire split into PayType +
+    BusinessScenarios happens here. Returns None when nothing was given — the
+    server then defaults the library to ``volc_pay``: Volcano pay-as-you-go,
+    billed in real money to the Volcano account, NOT AgentPlan AFP. The server
+    only checks a SeatId is non-empty, not that it exists: a typo surfaces at
+    the next hourly deduction, after which the library is disabled.
+    """
+    if not (pay_type or seat_id):
+        return None
+    if pay_type is None:  # only seat_id was given
+        raise ValueError(
+            "seat_id alone is ambiguous: also pass pay_type='agentplan_enterprise'"
+        )
+    if pay_type == "agentplan_pay":
+        raise ValueError(
+            "'agentplan_pay' is ambiguous here: use 'agentplan_personal' or "
+            "'agentplan_enterprise' (the choice is always explicit)"
+        )
+    if pay_type not in PAY_TYPE_MAP:
+        raise ValueError(
+            f"invalid pay_type {pay_type!r}; expected one of {', '.join(PAY_TYPE_MAP)} "
+            "(empty_pay is not offered: an unbound library is unusable and "
+            "auto-cleaned after 30 days)"
+        )
+
+    wire_type, scenario = PAY_TYPE_MAP[pay_type]
+    if wire_type == "volc_pay":
+        if seat_id:
+            raise ValueError("seat_id only applies to pay_type='agentplan_enterprise'")
+        return {"PayType": "volc_pay"}
+    if scenario == "agent_plan_enterprise" and not seat_id:
+        raise ValueError(
+            "pay_type='agentplan_enterprise' requires seat_id — the seat that pays; "
+            "copy it from the Ark console seat-management page"
+        )
+    if scenario == "agent_plan_personal" and seat_id:
+        raise ValueError(
+            "pay_type='agentplan_personal' must not carry a seat_id "
+            "(a personal plan has no seat)"
+        )
+    return {
+        "PayType": wire_type,
+        "AgentPlanConfig": {"BusinessScenarios": scenario, "SeatId": seat_id or ""},
+    }
 
 
 class ControlPlaneError(RuntimeError):
@@ -144,12 +198,15 @@ class ControlPlaneClient:
         project: Optional[str] = None,
         description: Optional[str] = None,
         openviking_version: Optional[str] = None,
+        pay_type: Optional[str] = None,
+        seat_id: Optional[str] = None,
         extra: Optional[Dict[str, Any]] = None,
     ) -> Dict[str, Any]:
         if version not in VERSION_CHOICES:
             raise ValueError(
                 f"invalid version {version!r}; expected one of {', '.join(VERSION_CHOICES)}"
             )
+        payment = build_payment_config(pay_type, seat_id)
         # Multi-credential create format: top-level Source is omitted (each model
         # carries its source inside Credentials[]).
         body: Dict[str, Any] = {
@@ -158,6 +215,8 @@ class ControlPlaneClient:
             "VLM": self._model_block(vlm, source, DEFAULT_VLM_MODEL),
             "Embedding": self._model_block(embedding, source, DEFAULT_EMBEDDING_MODEL),
         }
+        if payment is not None:
+            body["PaymentConfig"] = payment
         proj = project if project is not None else self.config.project
         if proj:
             body["Project"] = proj
@@ -180,21 +239,31 @@ class ControlPlaneClient:
         vlm: Optional[Dict[str, Any]] = None,
         embedding: Optional[Dict[str, Any]] = None,
         openviking_version: Optional[str] = None,
+        pay_type: Optional[str] = None,
+        seat_id: Optional[str] = None,
         extra: Optional[Dict[str, Any]] = None,
     ) -> Dict[str, Any]:
-        """Update a collection's mutable fields (e.g. Description).
+        """Update a collection's mutable fields (e.g. Description, PaymentConfig).
+
+        This is also the way to CHANGE how a library is billed (volc_pay ↔
+        AgentPlan deduction, or re-bind a seat after it was unbound): pass
+        pay_type / seat_id, validated by ``build_payment_config``. Omitting
+        both leaves the current billing untouched.
 
         NOTE: the backend re-validates model credentials on every update, so VLM and
         Embedding blocks are always sent (built like ``create_collection`` — for
         ``source == "agentplan"`` the model credential falls back to the configured
         AgentPlan key). Passing an empty/whitespace Description is a server-side no-op
         (the field is only overwritten by a non-empty value). ``extra`` is merged
-        verbatim for forward-compatibility (e.g. an eventual ``PaymentConfig``)."""
+        verbatim for forward-compatibility."""
+        payment = build_payment_config(pay_type, seat_id)
         body: Dict[str, Any] = {
             "ResourceID": resource_id,
             "VLM": self._model_block(vlm, source, DEFAULT_VLM_MODEL),
             "Embedding": self._model_block(embedding, source, DEFAULT_EMBEDDING_MODEL),
         }
+        if payment is not None:
+            body["PaymentConfig"] = payment
         if description is not None:
             body["Description"] = description
         if openviking_version is not None:

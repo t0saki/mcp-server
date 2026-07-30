@@ -83,8 +83,17 @@ uv run ov-cp create --name my_kb
 # 建企业版库（容量更高，按企业版费率计费）
 uv run ov-cp create --name my_kb --version enterprise
 
-# 更新库可变字段（只改传入的字段）
+# 计费方式（--pay-type）：库由谁付钱——与 --version 正交（--version 只决定费率）。
+# ⚠️ 不传时服务端默认 volc_pay（火山官网按量，扣真金白银），不走 AgentPlan AFP 抵扣。
+uv run ov-cp create --name my_kb --pay-type agentplan_personal
+uv run ov-cp create --name my_kb --version enterprise \
+  --pay-type agentplan_enterprise --seat-id seat-2026xxxx
+# --seat-id：付费的企业版席位，需自行从方舟控制台「席位管理」页复制——
+# 服务端不校验席位是否存在，填错要到下一个小时抵扣时才暴露（届时库被停用）。
+
+# 更新库可变字段（只改传入的字段）；也用于切换计费方式 / 换绑席位
 uv run ov-cp update <ResourceID> --description "新描述"
+uv run ov-cp update <ResourceID> --pay-type volc_pay
 
 # 管理企业版库的用户（key 需与该库已关联）
 uv run ov-cp user list     <ResourceID>

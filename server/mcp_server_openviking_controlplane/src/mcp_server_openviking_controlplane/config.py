@@ -27,6 +27,20 @@ DEFAULT_EMBEDDING_MODEL = "doubao-embedding-vision"
 # tier; "enterprise" is the higher-capacity, enterprise-billed tier.
 VERSION_CHOICES = ("developer", "enterprise")
 
+# Billing (``PaymentConfig``): how a library is paid for — orthogonal to the
+# ``Version`` tier, which only sets the hourly rate. One flat user-facing enum
+# (the wire format splits it into PayType + AgentPlanConfig.BusinessScenarios);
+# the personal/enterprise choice is always explicit, never inferred from the
+# key or the seat. ``empty_pay`` exists server-side but is deliberately not
+# offered: an unbound library's data plane is unusable and the library is
+# auto-cleaned after 30 days.
+PAY_TYPE_MAP = {
+    "agentplan_personal": ("agentplan_pay", "agent_plan_personal"),
+    "agentplan_enterprise": ("agentplan_pay", "agent_plan_enterprise"),
+    "volc_pay": ("volc_pay", None),
+}
+PAY_TYPE_CHOICES = tuple(PAY_TYPE_MAP)
+
 # Header names that extra_headers must never override: auth and content type are
 # owned by the client and a stray value would break the request.
 _PROTECTED_HEADERS = {"authorization", "content-type"}
