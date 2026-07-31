@@ -4,7 +4,7 @@ OpenViking 控制面（topapi）的 MCP Server **与** CLI —— 用于管理 O
 （`Collection`）。两个前端共用同一套核心（`client.py`），新增一个能力即可同时被 MCP
 和 CLI 使用。
 
-覆盖 11 个控制面 Action：
+覆盖 11 个库生命周期、计费与用户管理 Action：
 
 | Action | MCP tool | CLI 命令 |
 |---|---|---|
@@ -14,14 +14,16 @@ OpenViking 控制面（topapi）的 MCP Server **与** CLI —— 用于管理 O
 | `UpdateOpenVikingCollection` | `update_collection` | `ov-cp update <rid>` |
 | `DeleteOpenVikingCollection` | `delete_collection` ⚠️ | `ov-cp delete <rid>` |
 | `GetOpenVikingUsage` | `get_usage` | `ov-cp usage <rid>` |
-| `GetOpenVikingCollectionUserAccess` | `get_collection_api_key` | `ov-cp api-key <rid>` |
-| `ListOpenVikingCollectionUser` | `list_collection_users` | `ov-cp user list <rid>` |
+| `AccessOpenVikingApiKey`（路径 `/GetOpenVikingCollectionUserAccess`） | `get_collection_api_key` | `ov-cp api-key <rid>` |
+| `ListOpenVikingUser`（路径 `/ListOpenVikingCollectionUser`） | `list_collection_users` | `ov-cp user list <rid>` |
 | `RegisterOpenVikingUser` | `register_collection_user` | `ov-cp user register <rid>` |
 | `UpdateOpenVikingUser` | `update_collection_user` | `ov-cp user update <rid> <uid>` |
 | `DeleteOpenVikingUser` | `delete_collection_user` ⚠️ | `ov-cp user delete <rid> <uid>` |
 
 `user *` 系列管理企业版库的多用户，要求 AgentPlan key **与目标库已关联**。`user list`
-返回的用户 `ApiKey` 是**掩码**，取明文数据面 key 走 `api-key`。
+返回的用户 `ApiKey` 是**掩码**，取指定用户的明文数据面 key 使用
+`api-key <rid> --user-id <uid>`。新注册用户的角色固定为 `user`；`user update`
+当前只支持重生 API Key。
 
 ## 端点
 
@@ -75,6 +77,7 @@ uv run ov-cp list
 uv run ov-cp get   <ResourceID>
 uv run ov-cp usage <ResourceID>
 uv run ov-cp api-key <ResourceID>
+uv run ov-cp api-key <ResourceID> --user-id xiaohong
 
 # 建库（消耗付费配额；source=agentplan 时只需 --name，
 #       模型名取默认、模型 ApiKey 回落到配置的 key）
@@ -101,8 +104,9 @@ uv run ov-cp update <ResourceID> --pay-type volc_pay
 
 # 管理企业版库的用户（key 需与该库已关联）
 uv run ov-cp user list     <ResourceID>
-uv run ov-cp user register <ResourceID> xiaohong --role user
-uv run ov-cp user update   <ResourceID> xiaohong --role admin
+uv run ov-cp user list     <ResourceID> --role user --page 1 --limit 20
+uv run ov-cp user register <ResourceID> xiaohong
+uv run ov-cp user update   <ResourceID> xiaohong --regenerate-key
 uv run ov-cp user delete   <ResourceID> xiaohong --yes
 
 # 删库（不可逆）

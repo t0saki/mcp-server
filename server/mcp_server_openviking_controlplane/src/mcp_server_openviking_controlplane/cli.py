@@ -174,11 +174,19 @@ def usage_cmd(ctx: typer.Context, resource_id: str = typer.Argument(..., help="T
 
 
 @app.command("api-key")
-def api_key_cmd(ctx: typer.Context, resource_id: str = typer.Argument(..., help="Target library ResourceID.")):
-    """Get the plaintext data-plane API Key of a collection (default user)."""
+def api_key_cmd(
+    ctx: typer.Context,
+    resource_id: str = typer.Argument(..., help="Target library ResourceID."),
+    user_id: Optional[str] = typer.Option(
+        None,
+        "--user-id",
+        help="Target UserID; omit for the default user.",
+    ),
+):
+    """Get a user's plaintext data-plane API Key."""
     client = _client(ctx)
     try:
-        _print(ctx, client.get_user_access(resource_id), "api-key")
+        _print(ctx, client.get_user_access(resource_id, user_id=user_id), "api-key")
     except Exception as e:
         raise _fail(e)
 
@@ -321,11 +329,33 @@ app.add_typer(user_app, name="user")
 def user_list_cmd(
     ctx: typer.Context,
     resource_id: str = typer.Argument(..., help="Target library ResourceID."),
+    user_id: Optional[str] = typer.Option(
+        None,
+        "--user-id",
+        help="Filter by exact UserID.",
+    ),
+    role: Optional[str] = typer.Option(
+        None,
+        "--role",
+        help="Filter by role, e.g. admin | user.",
+    ),
+    page: int = typer.Option(1, min=1, help="Page number (1-based)."),
+    limit: int = typer.Option(20, min=1, max=200, help="Users per page."),
 ):
     """List users under a collection (ApiKey is masked; use `api-key` for plaintext)."""
     client = _client(ctx)
     try:
-        _print(ctx, client.list_collection_users(resource_id), "users")
+        _print(
+            ctx,
+            client.list_collection_users(
+                resource_id,
+                user_id=user_id,
+                role=role,
+                page=page,
+                limit=limit,
+            ),
+            "users",
+        )
     except Exception as e:
         raise _fail(e)
 
@@ -335,12 +365,11 @@ def user_register_cmd(
     ctx: typer.Context,
     resource_id: str = typer.Argument(..., help="Target library ResourceID."),
     user_id: str = typer.Argument(..., help="UserID for the new user (unique in library)."),
-    role: Optional[str] = typer.Option(None, help="Role, e.g. admin | user."),
 ):
-    """Register a new user under a collection."""
+    """Register a new regular user under a collection."""
     client = _client(ctx)
     try:
-        _print(ctx, client.register_user(resource_id, user_id, role=role), "success")
+        _print(ctx, client.register_user(resource_id, user_id), "success")
     except Exception as e:
         raise _fail(e)
 
@@ -350,12 +379,30 @@ def user_update_cmd(
     ctx: typer.Context,
     resource_id: str = typer.Argument(..., help="Target library ResourceID."),
     user_id: str = typer.Argument(..., help="Target UserID."),
-    role: Optional[str] = typer.Option(None, help="New role, e.g. admin | user."),
+    regenerate_key: bool = typer.Option(
+        False,
+        "--regenerate-key",
+        help="Rotate the user's data-plane API Key.",
+    ),
 ):
-    """Update a user under a collection (only passed fields change)."""
+    """Update a user under a collection (currently API Key rotation only)."""
+    if not regenerate_key:
+        raise _fail(
+            ValueError(
+                "nothing to update: pass --regenerate-key to rotate the user's API Key"
+            )
+        )
     client = _client(ctx)
     try:
-        _print(ctx, client.update_user(resource_id, user_id, role=role), "success")
+        _print(
+            ctx,
+            client.update_user(
+                resource_id,
+                user_id,
+                regenerate_key=regenerate_key,
+            ),
+            "success",
+        )
     except Exception as e:
         raise _fail(e)
 

@@ -4,7 +4,7 @@ MCP server **and** CLI for the OpenViking control plane (topapi) — manage OV
 libraries (`Collection`). Both front-ends share one core (`client.py`), so a tool
 added once is available from MCP and the CLI alike.
 
-Covers the 11 control-plane Actions:
+Covers 11 collection lifecycle, billing, and user-management Actions:
 
 | Action | MCP tool | CLI command |
 |---|---|---|
@@ -14,16 +14,17 @@ Covers the 11 control-plane Actions:
 | `UpdateOpenVikingCollection` | `update_collection` | `ov-cp update <rid>` |
 | `DeleteOpenVikingCollection` | `delete_collection` ⚠️ | `ov-cp delete <rid>` |
 | `GetOpenVikingUsage` | `get_usage` | `ov-cp usage <rid>` |
-| `GetOpenVikingCollectionUserAccess` | `get_collection_api_key` | `ov-cp api-key <rid>` |
-| `ListOpenVikingCollectionUser` | `list_collection_users` | `ov-cp user list <rid>` |
+| `AccessOpenVikingApiKey` (`/GetOpenVikingCollectionUserAccess`) | `get_collection_api_key` | `ov-cp api-key <rid>` |
+| `ListOpenVikingUser` (`/ListOpenVikingCollectionUser`) | `list_collection_users` | `ov-cp user list <rid>` |
 | `RegisterOpenVikingUser` | `register_collection_user` | `ov-cp user register <rid>` |
 | `UpdateOpenVikingUser` | `update_collection_user` | `ov-cp user update <rid> <uid>` |
 | `DeleteOpenVikingUser` | `delete_collection_user` ⚠️ | `ov-cp user delete <rid> <uid>` |
 
 The `user *` actions manage the multiple users of an enterprise-tier library; they
 require the AgentPlan key to be **associated with the target library**. A user's
-`ApiKey` from `user list` is **masked** — fetch a plaintext data-plane key via
-`api-key`.
+`ApiKey` from `user list` is **masked** — fetch a selected user's plaintext
+data-plane key via `api-key <rid> --user-id <uid>`. Newly registered users always
+have role `user`; `user update` currently supports API Key rotation only.
 
 ## Endpoint
 
@@ -82,6 +83,7 @@ uv run ov-cp list
 uv run ov-cp get   <ResourceID>
 uv run ov-cp usage <ResourceID>
 uv run ov-cp api-key <ResourceID>
+uv run ov-cp api-key <ResourceID> --user-id xiaohong
 
 # create (consumes paid quota; with source=agentplan only --name is needed —
 #         model names default, and the model ApiKey falls back to the configured key)
@@ -112,8 +114,9 @@ uv run ov-cp update <ResourceID> --pay-type volc_pay
 
 # manage users of an enterprise-tier library (key must be associated with it)
 uv run ov-cp user list     <ResourceID>
-uv run ov-cp user register <ResourceID> xiaohong --role user
-uv run ov-cp user update   <ResourceID> xiaohong --role admin
+uv run ov-cp user list     <ResourceID> --role user --page 1 --limit 20
+uv run ov-cp user register <ResourceID> xiaohong
+uv run ov-cp user update   <ResourceID> xiaohong --regenerate-key
 uv run ov-cp user delete   <ResourceID> xiaohong --yes
 
 # delete (irreversible)

@@ -38,17 +38,23 @@ export AGENTPLAN_API_KEY=ark-xxxxxxxx
 ov-cp list                       # list collections (optionally --project X)
 ov-cp get     <ResourceID>       # collection info (Status, models, version, ...)
 ov-cp usage   <ResourceID>       # file counts / hourly CNY and AgentPlan AFP estimate
-ov-cp api-key <ResourceID>       # plaintext data-plane key {UserID, Role, ApiKey}
+ov-cp api-key <ResourceID>       # default user's plaintext data-plane key
+ov-cp api-key <ResourceID> --user-id xiaohong  # selected user's plaintext key
 ov-cp create  --name my_kb       # create a collection (see below)
 ov-cp update  <ResourceID> --description "..."   # update fields / switch billing
 ov-cp delete  <ResourceID> --yes # delete (irreversible; uninstalls the Helm release)
 
 # users of an enterprise-tier library (key must be associated with the library):
 ov-cp user list     <ResourceID>                     # users (ApiKey is masked)
-ov-cp user register <ResourceID> xiaohong --role user  # add a user (UserID + role)
-ov-cp user update   <ResourceID> xiaohong --role admin
+ov-cp user list     <ResourceID> --role user --page 1 --limit 20
+ov-cp user register <ResourceID> xiaohong            # new users always get role=user
+ov-cp user update   <ResourceID> xiaohong --regenerate-key
 ov-cp user delete   <ResourceID> xiaohong --yes      # revoke a user's credential
 ```
+
+After `user update --regenerate-key`, fetch the replacement with
+`api-key <ResourceID> --user-id <UserID>`; the update response only confirms
+success and does not contain the new key.
 
 In a terminal, output defaults to structured Rich views. Pipes and redirects
 automatically receive standard JSON, so `ov-cp list | jq ...` and command
@@ -129,14 +135,14 @@ The returned `ApiKey` is the library's **data-plane** key. Use it as
 ## Notes
 
 - Only `Authorization: Bearer` is accepted (no `X-API-Key`).
-- Read-only actions (list/get/usage/delete) are not gated by AgentPlan; create and
-  api-key are.
+- `list` / `get` / `usage` are read-only. `delete` is destructive but, like those
+  reads, is not gated by AgentPlan; `create` and `api-key` are gated.
 - `get`/`usage`/`api-key`/`delete`/`update` and all `user *` take a `ResourceID`
   (e.g. `ov-xxxxxxxx`).
 - `user *` manages the multiple users of an **enterprise-tier** library and needs the
   AgentPlan key to be **associated with that library** (else the backend rejects it).
   `user list` returns each user's **masked** ApiKey; for a plaintext data-plane key
-  use `api-key`.
+  use `api-key <ResourceID> --user-id <UserID>`.
 - Extra headers: pass `-H 'Key: Value'` (repeatable) or set `VIKING_EXTRA_HEADERS`
   to a comma-separated `Key: Value` list — e.g. `-H 'x-tt-env: lujiakun'` for
   swim-lane routing. `Authorization` / `Content-Type` are protected and ignored.

@@ -85,22 +85,27 @@ def get_usage(resource_id: str) -> Dict[str, Any]:
 
 
 @mcp.tool()
-def get_collection_api_key(resource_id: str) -> Dict[str, Any]:
-    """Get the plaintext data-plane API Key of one collection by ResourceID.
+def get_collection_api_key(
+    resource_id: str,
+    user_id: Optional[str] = None,
+) -> Dict[str, Any]:
+    """Get one user's plaintext data-plane API Key.
 
-    Backed by the action GetOpenVikingCollectionUserAccess. Returns the library's
-    default-user credential. You can only query libraries under your own account;
-    there is no cross-account / sudo lookup. NOTE: the ApiKey is plaintext — handle
-    and surface it with care.
+    Backed by the action GetOpenVikingCollectionUserAccess. When user_id is omitted,
+    returns the library's default-user credential; enterprise libraries can select
+    a specific user. You can only query libraries under your own account; there is
+    no cross-account / sudo lookup. NOTE: the ApiKey is plaintext — handle and
+    surface it with care.
 
     Args:
         resource_id: target library ResourceID.
+        user_id: optional target UserID; omit for the default user.
 
     Returns:
         {"UserID", "Role", "ApiKey"}
     """
     try:
-        return get_client().get_user_access(resource_id)
+        return get_client().get_user_access(resource_id, user_id=user_id)
     except Exception as e:
         logger.error(f"get_collection_api_key failed: {e}")
         return _err(e)
@@ -234,7 +239,13 @@ def update_collection(
 
 
 @mcp.tool()
-def list_collection_users(resource_id: str) -> Dict[str, Any]:
+def list_collection_users(
+    resource_id: str,
+    user_id: Optional[str] = None,
+    role: Optional[str] = None,
+    page: int = 1,
+    limit: int = 20,
+) -> Dict[str, Any]:
     """List the users registered under one OpenViking collection.
 
     Backed by ListOpenVikingCollectionUser. Requires the AgentPlan key to be
@@ -243,36 +254,44 @@ def list_collection_users(resource_id: str) -> Dict[str, Any]:
 
     Args:
         resource_id: target library ResourceID.
+        user_id: optional exact UserID filter.
+        role: optional role filter, e.g. "admin" or "user".
+        page: 1-based page number; defaults to 1.
+        limit: users per page, 1 to 200; defaults to 20.
 
     Returns:
         {"UserList": [ {"UserID", "Role", "ApiKey" (masked)} ], "Total": N}
     """
     try:
-        return get_client().list_collection_users(resource_id)
+        return get_client().list_collection_users(
+            resource_id,
+            user_id=user_id,
+            role=role,
+            page=page,
+            limit=limit,
+        )
     except Exception as e:
         logger.error(f"list_collection_users failed: {e}")
         return _err(e)
 
 
 @mcp.tool()
-def register_collection_user(
-    resource_id: str, user_id: str, role: Optional[str] = None
-) -> Dict[str, Any]:
+def register_collection_user(resource_id: str, user_id: str) -> Dict[str, Any]:
     """Register a NEW user under an OpenViking collection (RegisterOpenVikingUser).
 
     Requires the AgentPlan key to be associated with the target library. CONFIRM
-    WITH THE USER before calling — this creates a new credentialed user.
+    WITH THE USER before calling — this creates a new credentialed regular "user".
+    The backend does not support choosing another role.
 
     Args:
         resource_id: target library ResourceID.
         user_id: the UserID for the new user (unique within the library).
-        role: optional role, e.g. "admin" or "user".
 
     Returns:
         {"Success": true}
     """
     try:
-        return get_client().register_user(resource_id, user_id, role=role)
+        return get_client().register_user(resource_id, user_id)
     except Exception as e:
         logger.error(f"register_collection_user failed: {e}")
         return _err(e)
@@ -282,23 +301,28 @@ def register_collection_user(
 def update_collection_user(
     resource_id: str,
     user_id: str,
-    role: Optional[str] = None,
+    regenerate_key: bool,
 ) -> Dict[str, Any]:
-    """Update a user under an OpenViking collection (UpdateOpenVikingUser).
+    """Update a user under an OpenViking collection (currently API Key rotation).
 
-    Only the fields you pass (non-None) are changed. Requires the AgentPlan key to be
-    associated with the target library. CONFIRM WITH THE USER before calling.
+    Requires the AgentPlan key to be associated with the target library. CONFIRM
+    WITH THE USER before calling with regenerate_key=true because the old key stops
+    working. The backend currently has no role-update operation.
 
     Args:
         resource_id: target library ResourceID.
         user_id: the UserID to update.
-        role: optional new role, e.g. "admin" or "user".
+        regenerate_key: true to rotate the user's data-plane API Key.
 
     Returns:
         {"Success": true}
     """
     try:
-        return get_client().update_user(resource_id, user_id, role=role)
+        return get_client().update_user(
+            resource_id,
+            user_id,
+            regenerate_key=regenerate_key,
+        )
     except Exception as e:
         logger.error(f"update_collection_user failed: {e}")
         return _err(e)

@@ -350,39 +350,60 @@ class ControlPlaneClient:
             )
         return enrich_usage_billing(result, collection)
 
-    def get_user_access(self, resource_id: str) -> Dict[str, Any]:
+    def get_user_access(
+        self,
+        resource_id: str,
+        user_id: Optional[str] = None,
+    ) -> Dict[str, Any]:
         # On the data-plane cluster the api-key action is registered as
         # GetOpenVikingCollectionUserAccess (the console proxy's
-        # AccessOpenVikingApiKey is NOT routed here — it 404s). Returns the
-        # default user's PLAINTEXT key: {"UserID", "Role", "ApiKey"}.
+        # AccessOpenVikingApiKey is NOT routed here — it 404s). Returns a
+        # PLAINTEXT key: {"UserID", "Role", "ApiKey"}. With no UserID the
+        # backend returns the default user.
         # (ListOpenVikingCollectionUser only returns a masked key.)
-        return self._request(
-            "GetOpenVikingCollectionUserAccess", {"ResourceID": resource_id}
-        )
+        body: Dict[str, Any] = {"ResourceID": resource_id}
+        if user_id is not None:
+            body["UserID"] = user_id
+        return self._request("GetOpenVikingCollectionUserAccess", body)
 
     # --- User management (enterprise-tier libraries: multi-user) -------------
     # These require the AgentPlan key to be associated with the target library;
     # operating on an unassociated library is rejected server-side. The ApiKey in
     # a List response is MASKED — fetch the plaintext key via get_user_access.
 
-    def list_collection_users(self, resource_id: str) -> Dict[str, Any]:
+    def list_collection_users(
+        self,
+        resource_id: str,
+        user_id: Optional[str] = None,
+        role: Optional[str] = None,
+        page: int = 1,
+        limit: int = 20,
+    ) -> Dict[str, Any]:
         # ListOpenVikingCollectionUser: users under the library (ApiKey masked).
-        return self._request(
-            "ListOpenVikingCollectionUser", {"ResourceID": resource_id}
-        )
+        if page < 1:
+            raise ValueError("page must be >= 1")
+        if not 1 <= limit <= 200:
+            raise ValueError("limit must be between 1 and 200")
+        body: Dict[str, Any] = {
+            "ResourceID": resource_id,
+            "Page": page,
+            "Limit": limit,
+        }
+        if user_id is not None:
+            body["UserID"] = user_id
+        if role is not None:
+            body["Role"] = role
+        return self._request("ListOpenVikingCollectionUser", body)
 
     def register_user(
         self,
         resource_id: str,
         user_id: str,
-        role: Optional[str] = None,
         extra: Optional[Dict[str, Any]] = None,
     ) -> Dict[str, Any]:
-        # RegisterOpenVikingUser: create a new user under the library. UserID is
-        # required; Role is e.g. "admin" / "user".
+        # RegisterOpenVikingUser: create a regular "user" under the library.
+        # The backend does not accept a Role parameter.
         body: Dict[str, Any] = {"ResourceID": resource_id, "UserID": user_id}
-        if role is not None:
-            body["Role"] = role
         if extra:
             body.update(extra)
         return self._request("RegisterOpenVikingUser", body)
@@ -391,13 +412,19 @@ class ControlPlaneClient:
         self,
         resource_id: str,
         user_id: str,
-        role: Optional[str] = None,
+        regenerate_key: bool = False,
         extra: Optional[Dict[str, Any]] = None,
     ) -> Dict[str, Any]:
-        # UpdateOpenVikingUser: update a user's mutable fields (e.g. Role).
-        body: Dict[str, Any] = {"ResourceID": resource_id, "UserID": user_id}
-        if role is not None:
-            body["Role"] = role
+        # UpdateOpenVikingUser only supports rotating the user's ApiKey.
+        if not regenerate_key:
+            raise ValueError(
+                "nothing to update: regenerate_key=True is required to rotate the user's API Key"
+            )
+        body: Dict[str, Any] = {
+            "ResourceID": resource_id,
+            "UserID": user_id,
+            "RegenerateKey": True,
+        }
         if extra:
             body.update(extra)
         return self._request("UpdateOpenVikingUser", body)
