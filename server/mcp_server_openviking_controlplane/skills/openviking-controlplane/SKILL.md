@@ -50,8 +50,12 @@ ov-cp user update   <ResourceID> xiaohong --role admin
 ov-cp user delete   <ResourceID> xiaohong --yes      # revoke a user's credential
 ```
 
-Output is JSON. Errors print `Error [Code]: Message` to stderr with exit code 1.
-`ov-cp --help` and `ov-cp <cmd> --help` work without any config.
+In a terminal, output defaults to structured Rich views. Pipes and redirects
+automatically receive standard JSON, so `ov-cp list | jq ...` and command
+substitution remain safe. Use the global `--json`, `--output json-compact`, or
+`--output pretty` flags to force a mode. Errors print `Error [Code]: Message` to
+stderr with exit code 1. `ov-cp --help` and `ov-cp <cmd> --help` work without
+any config.
 
 `usage` keeps `EstimatedCosts` for compatibility and adds `EstimatedBilling`.
 That object identifies the hourly period and CNY estimate; AgentPlan-paid

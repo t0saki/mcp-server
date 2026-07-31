@@ -120,6 +120,19 @@ uv run ov-cp user delete   <ResourceID> xiaohong --yes
 uv run ov-cp delete <ResourceID> --yes
 ```
 
+When stdout is a terminal, `--output auto` (the default) renders structured
+Rich views: tables for collection/user lists, sectioned detail panels for
+`get`/`usage`, compact success cards for mutations, and a warning panel for
+plaintext API keys. Piping or redirecting automatically keeps standard JSON:
+
+```bash
+uv run ov-cp list                     # Rich table in a terminal
+uv run ov-cp list | jq '.Collections' # standard JSON
+uv run ov-cp --json list              # force standard JSON
+uv run ov-cp --output json-compact list
+uv run ov-cp --output pretty list     # force the terminal view
+```
+
 `usage` preserves the backend's legacy `EstimatedCosts` field and also returns
 `EstimatedBilling` with an explicit hourly period and CNY unit. For collections
 paid by AgentPlan it includes the equivalent AFP deduction and payment scenario;

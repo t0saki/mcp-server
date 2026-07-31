@@ -1,7 +1,7 @@
-import json
 import logging
+from dataclasses import dataclass
 from enum import Enum
-from typing import Any, Dict, List, Optional
+from typing import Any, Callable, Dict, List, Optional
 
 import typer
 
@@ -12,6 +12,7 @@ from mcp_server_openviking_controlplane.config import (
     build_config,
     parse_extra_headers,
 )
+from mcp_server_openviking_controlplane.output import OutputMode, render_result
 
 logging.basicConfig(
     level=logging.WARNING, format="%(asctime)s - %(name)s - %(levelname)s - %(message)s"
@@ -38,8 +39,15 @@ class PayTypeOption(str, Enum):
     VOLC_PAY = "volc_pay"
 
 
-def _print(result: Any) -> None:
-    typer.echo(json.dumps(result, indent=2, ensure_ascii=False))
+@dataclass
+class CliState:
+    client_factory: Callable[[], ControlPlaneClient]
+    output_mode: OutputMode
+
+
+def _print(ctx: typer.Context, result: Any, view: str = "auto") -> None:
+    state: CliState = ctx.obj
+    render_result(result, output_mode=state.output_mode, view=view)
 
 
 def _fail(e: Exception) -> "typer.Exit":
@@ -54,7 +62,8 @@ def _fail(e: Exception) -> "typer.Exit":
 def _client(ctx: typer.Context) -> ControlPlaneClient:
     """Build the shared client lazily so `--help` never needs valid config."""
     try:
-        return ctx.obj()
+        state: CliState = ctx.obj
+        return state.client_factory()
     except Exception as e:
         raise _fail(e)
 
@@ -100,6 +109,16 @@ def main_callback(
              "VIKING_EXTRA_HEADERS (CLI wins). E.g. -H 'x-tt-env: lujiakun' to "
              "route into a swim-lane.",
     ),
+    output: OutputMode = typer.Option(
+        OutputMode.AUTO,
+        "--output",
+        help="Output: auto (TTY view, JSON when piped) | pretty | json | json-compact.",
+    ),
+    json_output: bool = typer.Option(
+        False,
+        "--json",
+        help="Force standard JSON output (shortcut for --output json).",
+    ),
 ):
     """Stash a client factory on the context; commands build it on demand."""
 
@@ -115,7 +134,10 @@ def main_callback(
         )
         return ControlPlaneClient(config)
 
-    ctx.obj = _factory
+    ctx.obj = CliState(
+        client_factory=_factory,
+        output_mode=OutputMode.JSON if json_output else output,
+    )
 
 
 @app.command("list")
@@ -126,7 +148,7 @@ def list_cmd(
     """List collections under the account."""
     client = _client(ctx)
     try:
-        _print(client.list_collections(project=project))
+        _print(ctx, client.list_collections(project=project), "collections")
     except Exception as e:
         raise _fail(e)
 
@@ -136,7 +158,7 @@ def get_cmd(ctx: typer.Context, resource_id: str = typer.Argument(..., help="Tar
     """Get basic info of a collection."""
     client = _client(ctx)
     try:
-        _print(client.get_collection(resource_id))
+        _print(ctx, client.get_collection(resource_id), "collection")
     except Exception as e:
         raise _fail(e)
 
@@ -146,7 +168,7 @@ def usage_cmd(ctx: typer.Context, resource_id: str = typer.Argument(..., help="T
     """Get overall usage / file counts of a collection."""
     client = _client(ctx)
     try:
-        _print(client.get_usage(resource_id))
+        _print(ctx, client.get_usage(resource_id), "usage")
     except Exception as e:
         raise _fail(e)
 
@@ -156,7 +178,7 @@ def api_key_cmd(ctx: typer.Context, resource_id: str = typer.Argument(..., help=
     """Get the plaintext data-plane API Key of a collection (default user)."""
     client = _client(ctx)
     try:
-        _print(client.get_user_access(resource_id))
+        _print(ctx, client.get_user_access(resource_id), "api-key")
     except Exception as e:
         raise _fail(e)
 
@@ -225,6 +247,7 @@ def create_cmd(
     embedding = _model_cfg(emb_model, emb_api_key_id, emb_api_key, emb_endpoint_id)
     try:
         _print(
+            ctx,
             client.create_collection(
                 name=name,
                 source=source,
@@ -236,7 +259,8 @@ def create_cmd(
                 openviking_version=openviking_version,
                 pay_type=pay_type.value if pay_type else None,
                 seat_id=seat_id,
-            )
+            ),
+            "success",
         )
     except Exception as e:
         raise _fail(e)
@@ -271,13 +295,15 @@ def update_cmd(
     client = _client(ctx)
     try:
         _print(
+            ctx,
             client.update_collection(
                 resource_id,
                 description=description,
                 openviking_version=openviking_version,
                 pay_type=pay_type.value if pay_type else None,
                 seat_id=seat_id,
-            )
+            ),
+            "success",
         )
     except Exception as e:
         raise _fail(e)
@@ -299,7 +325,7 @@ def user_list_cmd(
     """List users under a collection (ApiKey is masked; use `api-key` for plaintext)."""
     client = _client(ctx)
     try:
-        _print(client.list_collection_users(resource_id))
+        _print(ctx, client.list_collection_users(resource_id), "users")
     except Exception as e:
         raise _fail(e)
 
@@ -314,7 +340,7 @@ def user_register_cmd(
     """Register a new user under a collection."""
     client = _client(ctx)
     try:
-        _print(client.register_user(resource_id, user_id, role=role))
+        _print(ctx, client.register_user(resource_id, user_id, role=role), "success")
     except Exception as e:
         raise _fail(e)
 
@@ -329,7 +355,7 @@ def user_update_cmd(
     """Update a user under a collection (only passed fields change)."""
     client = _client(ctx)
     try:
-        _print(client.update_user(resource_id, user_id, role=role))
+        _print(ctx, client.update_user(resource_id, user_id, role=role), "success")
     except Exception as e:
         raise _fail(e)
 
@@ -349,7 +375,7 @@ def user_delete_cmd(
             abort=True,
         )
     try:
-        _print(client.delete_user(resource_id, user_id))
+        _print(ctx, client.delete_user(resource_id, user_id), "success")
     except Exception as e:
         raise _fail(e)
 
@@ -368,7 +394,7 @@ def delete_cmd(
             abort=True,
         )
     try:
-        _print(client.delete_collection(resource_id))
+        _print(ctx, client.delete_collection(resource_id), "success")
     except Exception as e:
         raise _fail(e)
 

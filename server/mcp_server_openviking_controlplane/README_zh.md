@@ -109,6 +109,18 @@ uv run ov-cp user delete   <ResourceID> xiaohong --yes
 uv run ov-cp delete <ResourceID> --yes
 ```
 
+默认的 `--output auto` 在 stdout 连接终端时使用 Rich 结构化视图：
+库/用户列表显示为表格，`get`/`usage` 显示为分区详情卡片，写操作显示精简成功卡片，
+明文 API Key 则显示敏感信息警告。管道和重定向会自动保持标准 JSON：
+
+```bash
+uv run ov-cp list                     # 终端内显示 Rich 表格
+uv run ov-cp list | jq '.Collections' # 标准 JSON
+uv run ov-cp --json list              # 强制标准 JSON
+uv run ov-cp --output json-compact list
+uv run ov-cp --output pretty list     # 强制终端视图
+```
+
 `usage` 保留后端原有的 `EstimatedCosts` 字段，同时新增 `EstimatedBilling`，
 明确费用为每小时 CNY 估值。AgentPlan 支付的库还会返回对应的 AFP 抵扣量和
 支付场景；`volc_pay` 只返回 CNY。
