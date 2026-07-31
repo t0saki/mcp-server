@@ -3,6 +3,11 @@ import os
 from dataclasses import dataclass, field
 from typing import Dict, Optional
 
+from mcp_server_openviking_controlplane.common.auth import (
+    validate_header_name,
+    validate_header_value,
+)
+
 logger = logging.getLogger(__name__)
 
 # The control-plane TopAPI is compiled into the OpenViking data-plane cluster.
@@ -90,6 +95,8 @@ class ControlPlaneConfig:
         callers can merge them onto request headers without clobbering auth."""
         safe: Dict[str, str] = {}
         for key, value in self.extra_headers.items():
+            validate_header_name(key, label="extra header name")
+            validate_header_value(value, label=f"extra header {key!r}")
             if key.lower() in _PROTECTED_HEADERS:
                 logger.warning("ignoring protected extra header: %s", key)
                 continue
