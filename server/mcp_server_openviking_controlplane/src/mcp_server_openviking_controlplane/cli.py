@@ -1,16 +1,14 @@
 import json
 import logging
+from enum import Enum
 from typing import Any, Dict, List, Optional
 
-import click
 import typer
 
 from mcp_server_openviking_controlplane.client import ControlPlaneClient, ControlPlaneError
 from mcp_server_openviking_controlplane.config import (
     DEFAULT_EMBEDDING_MODEL,
     DEFAULT_VLM_MODEL,
-    PAY_TYPE_CHOICES,
-    VERSION_CHOICES,
     build_config,
     parse_extra_headers,
 )
@@ -27,6 +25,17 @@ app = typer.Typer(
     no_args_is_help=True,
     add_completion=True,
 )
+
+
+class VersionOption(str, Enum):
+    DEVELOPER = "developer"
+    ENTERPRISE = "enterprise"
+
+
+class PayTypeOption(str, Enum):
+    AGENTPLAN_PERSONAL = "agentplan_personal"
+    AGENTPLAN_ENTERPRISE = "agentplan_enterprise"
+    VOLC_PAY = "volc_pay"
 
 
 def _print(result: Any) -> None:
@@ -157,12 +166,10 @@ def create_cmd(
     ctx: typer.Context,
     name: str = typer.Option(..., help="Library name ^[a-zA-Z][a-zA-Z0-9_]*$, <=64."),
     source: str = typer.Option("agentplan", help="Model source: agentplan | volcengine | codeplan."),
-    version: str = typer.Option(
-        "developer",
+    version: VersionOption = typer.Option(
+        VersionOption.DEVELOPER,
         help="Library tier: developer (default) | enterprise "
              "(higher capacity, billed at enterprise rates).",
-        click_type=click.Choice(VERSION_CHOICES),
-        metavar="[developer|enterprise]",
     ),
     vlm_model: str = typer.Option(DEFAULT_VLM_MODEL, help="VLM ModelName."),
     vlm_api_key_id: Optional[str] = typer.Option(None, help="VLM ApiKeyID (exclusive with --vlm-api-key)."),
@@ -175,7 +182,7 @@ def create_cmd(
     project: Optional[str] = typer.Option(None, help="Project name (defaults to configured)."),
     description: Optional[str] = typer.Option(None, help="Description, <=65535 chars."),
     openviking_version: Optional[str] = typer.Option(None, help="Image version (optional)."),
-    pay_type: Optional[str] = typer.Option(
+    pay_type: Optional[PayTypeOption] = typer.Option(
         None, "--pay-type",
         help="Billing: agentplan_personal (personal AgentPlan AFP deduction; the "
              "default when omitted) | agentplan_enterprise (an enterprise seat's "
@@ -184,8 +191,6 @@ def create_cmd(
              "⚠️ Accounts with no personal plan (e.g. enterprise seat keys) must "
              "not rely on the default: the library would bind a non-existent "
              "personal plan, deduction fails and the library is disabled.",
-        click_type=click.Choice(PAY_TYPE_CHOICES),
-        metavar="[agentplan_personal|agentplan_enterprise|volc_pay]",
     ),
     seat_id: Optional[str] = typer.Option(
         None, "--seat-id",
@@ -225,11 +230,11 @@ def create_cmd(
                 source=source,
                 vlm=vlm,
                 embedding=embedding,
-                version=version,
+                version=version.value,
                 project=project,
                 description=description,
                 openviking_version=openviking_version,
-                pay_type=pay_type,
+                pay_type=pay_type.value if pay_type else None,
                 seat_id=seat_id,
             )
         )
@@ -243,14 +248,12 @@ def update_cmd(
     resource_id: str = typer.Argument(..., help="Target library ResourceID."),
     description: Optional[str] = typer.Option(None, help="New description, <=65535 chars."),
     openviking_version: Optional[str] = typer.Option(None, help="New image version."),
-    pay_type: Optional[str] = typer.Option(
+    pay_type: Optional[PayTypeOption] = typer.Option(
         None, "--pay-type",
         help="Switch billing: agentplan_personal (personal AgentPlan AFP) | "
              "agentplan_enterprise (an enterprise seat's AFP; requires --seat-id) "
              "| volc_pay (Volcano pay-as-you-go, billed to the Volcano account). "
              "Omit to leave billing untouched.",
-        click_type=click.Choice(PAY_TYPE_CHOICES),
-        metavar="[agentplan_personal|agentplan_enterprise|volc_pay]",
     ),
     seat_id: Optional[str] = typer.Option(
         None, "--seat-id",
@@ -272,7 +275,7 @@ def update_cmd(
                 resource_id,
                 description=description,
                 openviking_version=openviking_version,
-                pay_type=pay_type,
+                pay_type=pay_type.value if pay_type else None,
                 seat_id=seat_id,
             )
         )
