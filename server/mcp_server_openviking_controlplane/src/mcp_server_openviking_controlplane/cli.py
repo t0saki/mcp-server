@@ -279,7 +279,6 @@ def update_cmd(
     ctx: typer.Context,
     resource_id: str = typer.Argument(..., help="Target library ResourceID."),
     description: Optional[str] = typer.Option(None, help="New description, <=65535 chars."),
-    openviking_version: Optional[str] = typer.Option(None, help="New image version."),
     pay_type: Optional[PayTypeOption] = typer.Option(
         None, "--pay-type",
         help="Switch billing: agentplan_personal (personal AgentPlan AFP) | "
@@ -307,7 +306,6 @@ def update_cmd(
             client.update_collection(
                 resource_id,
                 description=description,
-                openviking_version=openviking_version,
                 pay_type=pay_type.value if pay_type else None,
                 seat_id=seat_id,
             ),

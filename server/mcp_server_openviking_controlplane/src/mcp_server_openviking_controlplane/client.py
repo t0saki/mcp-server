@@ -296,7 +296,6 @@ class ControlPlaneClient:
         source: str = "agentplan",
         vlm: Optional[Dict[str, Any]] = None,
         embedding: Optional[Dict[str, Any]] = None,
-        openviking_version: Optional[str] = None,
         pay_type: Optional[str] = None,
         seat_id: Optional[str] = None,
         extra: Optional[Dict[str, Any]] = None,
@@ -326,8 +325,6 @@ class ControlPlaneClient:
             body["PaymentConfig"] = payment
         if description is not None:
             body["Description"] = description
-        if openviking_version is not None:
-            body["OpenvikingVersion"] = openviking_version
         if extra:
             body.update(extra)
         return self._request("UpdateOpenVikingCollection", body)

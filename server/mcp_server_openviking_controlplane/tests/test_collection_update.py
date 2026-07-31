@@ -1,6 +1,9 @@
 import unittest
+from inspect import signature
 from unittest.mock import patch
 
+from mcp_server_openviking_controlplane import server
+from mcp_server_openviking_controlplane.cli import update_cmd
 from mcp_server_openviking_controlplane.client import ControlPlaneClient
 from mcp_server_openviking_controlplane.config import ControlPlaneConfig
 
@@ -81,6 +84,11 @@ class CollectionUpdateContractTest(unittest.TestCase):
                 },
             },
         )
+
+    def test_removed_version_update_is_not_exposed(self):
+        self.assertNotIn("openviking_version", signature(self.client.update_collection).parameters)
+        self.assertNotIn("openviking_version", signature(server.update_collection).parameters)
+        self.assertNotIn("openviking_version", signature(update_cmd).parameters)
 
 
 if __name__ == "__main__":

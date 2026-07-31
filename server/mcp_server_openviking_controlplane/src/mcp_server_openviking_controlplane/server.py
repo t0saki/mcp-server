@@ -193,7 +193,6 @@ def create_collection(
 def update_collection(
     resource_id: str,
     description: Optional[str] = None,
-    openviking_version: Optional[str] = None,
     pay_type: Optional[str] = None,
     seat_id: Optional[str] = None,
 ) -> Dict[str, Any]:
@@ -211,7 +210,6 @@ def update_collection(
     Args:
         resource_id: target library ResourceID.
         description: new description, length <= 65535 (non-empty to take effect).
-        openviking_version: new image version.
         pay_type: new billing — "agentplan_personal" (personal AgentPlan AFP),
                   "agentplan_enterprise" (an enterprise seat's AFP; requires
                   seat_id), or "volc_pay" (Volcano pay-as-you-go, billed to the
@@ -229,7 +227,6 @@ def update_collection(
         return get_client().update_collection(
             resource_id,
             description=description,
-            openviking_version=openviking_version,
             pay_type=pay_type,
             seat_id=seat_id,
         )
