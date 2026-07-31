@@ -308,18 +308,20 @@ class ControlPlaneClient:
         pay_type / seat_id, validated by ``build_payment_config``. Omitting
         both leaves the current billing untouched.
 
-        NOTE: the backend re-validates model credentials on every update, so VLM and
-        Embedding blocks are always sent (built like ``create_collection`` — for
-        ``source == "agentplan"`` the model credential falls back to the configured
-        AgentPlan key). Passing an empty/whitespace Description is a server-side no-op
-        (the field is only overwritten by a non-empty value). ``extra`` is merged
-        verbatim for forward-compatibility."""
+        VLM and Embedding are sent only when explicitly supplied. This preserves
+        existing multi-credential model configuration during description or billing
+        updates. Passing an empty/whitespace Description is a server-side no-op.
+        ``extra`` is merged verbatim for forward-compatibility."""
         payment = build_payment_config(pay_type, seat_id)
-        body: Dict[str, Any] = {
-            "ResourceID": resource_id,
-            "VLM": self._model_block(vlm, source, DEFAULT_VLM_MODEL),
-            "Embedding": self._model_block(embedding, source, DEFAULT_EMBEDDING_MODEL),
-        }
+        body: Dict[str, Any] = {"ResourceID": resource_id}
+        if vlm is not None:
+            body["VLM"] = self._model_block(vlm, source, DEFAULT_VLM_MODEL)
+        if embedding is not None:
+            body["Embedding"] = self._model_block(
+                embedding,
+                source,
+                DEFAULT_EMBEDDING_MODEL,
+            )
         if payment is not None:
             body["PaymentConfig"] = payment
         if description is not None:

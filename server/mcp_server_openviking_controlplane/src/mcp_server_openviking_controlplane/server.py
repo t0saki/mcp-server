@@ -203,10 +203,10 @@ def update_collection(
     THE USER before calling — this mutates a live library. This is also the way to
     SWITCH BILLING (volc_pay ↔ AgentPlan deduction, or re-bind a seat after it
     was unbound); omitting both pay_type and seat_id leaves billing untouched.
-    The backend re-validates model credentials on update, so VLM/Embedding are
-    sent automatically using the configured AgentPlan key. NOTE: an
-    empty/whitespace description is a server-side no-op — the description can
-    only be overwritten with a non-empty value.
+    Model configuration is not sent by this tool, so description and billing
+    changes preserve existing VLM/Embedding credentials. NOTE: an empty/whitespace
+    description is a server-side no-op — the description can only be overwritten
+    with a non-empty value.
 
     Args:
         resource_id: target library ResourceID.
