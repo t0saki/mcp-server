@@ -72,8 +72,10 @@ def get_usage(resource_id: str) -> Dict[str, Any]:
 
     Returns:
         {"CurContextFileNum", "ResourcesFileNum", "UserFileNum",
-         "FreshTime" (Unix seconds), "EstimatedCosts"}. Counts are whole-library +
-         the three top-level dirs only; per-uri breakdown is not supported.
+         "FreshTime" (Unix seconds), "EstimatedCosts", "EstimatedBilling"}.
+         EstimatedBilling adds CNY / hour plus PayType and, for AgentPlan
+         payment, the equivalent AFP / hour. Counts are whole-library + the
+         three top-level dirs only; per-uri breakdown is not supported.
     """
     try:
         return get_client().get_usage(resource_id)

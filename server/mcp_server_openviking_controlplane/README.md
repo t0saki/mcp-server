@@ -120,6 +120,11 @@ uv run ov-cp user delete   <ResourceID> xiaohong --yes
 uv run ov-cp delete <ResourceID> --yes
 ```
 
+`usage` preserves the backend's legacy `EstimatedCosts` field and also returns
+`EstimatedBilling` with an explicit hourly period and CNY unit. For collections
+paid by AgentPlan it includes the equivalent AFP deduction and payment scenario;
+for `volc_pay` it reports CNY only.
+
 Flags override env. The endpoint defaults to the public gateway; override it only
 for testing (e.g. against a port-forward) with `-e` / `VIKING_ENDPOINT` —
 `uv run ov-cp -e http://localhost:18080 list`.

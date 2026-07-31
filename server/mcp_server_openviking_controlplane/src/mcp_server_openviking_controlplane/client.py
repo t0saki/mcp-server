@@ -1,5 +1,6 @@
 import json
 import logging
+from decimal import Decimal, InvalidOperation
 from typing import Any, Dict, Optional
 
 import requests
@@ -19,6 +20,53 @@ logger = logging.getLogger(__name__)
 # Headers we never replay verbatim: requests recomputes them, or a stale value
 # breaks the request. We always send a freshly serialized JSON body.
 _DROP_HEADERS = {"content-length", "connection", "accept-encoding"}
+_AFP_PER_CNY = Decimal("500")
+
+
+def _format_decimal(value: Decimal) -> str:
+    """Render a decimal without scientific notation or insignificant zeroes."""
+    rendered = format(value.normalize(), "f")
+    return rendered.rstrip("0").rstrip(".") if "." in rendered else rendered
+
+
+def enrich_usage_billing(
+    usage: Dict[str, Any],
+    collection: Optional[Dict[str, Any]] = None,
+) -> Dict[str, Any]:
+    """Add unit, period, payment source and AgentPlan AFP to legacy usage data."""
+    if isinstance(usage.get("EstimatedBilling"), dict):
+        return usage
+    estimated_cost = usage.get("EstimatedCosts")
+    if estimated_cost is None:
+        return usage
+
+    billing: Dict[str, Any] = {
+        "CNY": str(estimated_cost),
+        "Period": "hour",
+    }
+    payment = (collection or {}).get("PaymentConfig")
+    if isinstance(payment, dict):
+        pay_type = payment.get("PayType")
+        if pay_type:
+            billing["PayType"] = pay_type
+        agentplan = payment.get("AgentPlanConfig")
+        if isinstance(agentplan, dict):
+            scenario = agentplan.get("BusinessScenarios")
+            if scenario:
+                billing["BusinessScenarios"] = scenario
+        if pay_type == "agentplan_pay":
+            try:
+                billing["AFP"] = _format_decimal(
+                    Decimal(str(estimated_cost)) * _AFP_PER_CNY
+                )
+            except InvalidOperation:
+                logger.warning(
+                    "cannot convert EstimatedCosts=%r to AgentPlan AFP",
+                    estimated_cost,
+                )
+
+    usage["EstimatedBilling"] = billing
+    return usage
 
 
 def build_payment_config(
@@ -289,7 +337,18 @@ class ControlPlaneClient:
         result = self._request("GetOpenVikingUsage", {"ResourceID": resource_id})
         # AgentFileNum is not meaningful here; drop it from the returned usage.
         result.pop("AgentFileNum", None)
-        return result
+        collection: Optional[Dict[str, Any]] = None
+        try:
+            collection = self.get_collection(resource_id)
+        except (ControlPlaneError, requests.RequestException) as error:
+            # PaymentConfig was added after the usage API. Keep usage compatible
+            # with older deployments even when collection metadata is unavailable.
+            logger.debug(
+                "cannot load billing metadata for %s: %s",
+                resource_id,
+                error,
+            )
+        return enrich_usage_billing(result, collection)
 
     def get_user_access(self, resource_id: str) -> Dict[str, Any]:
         # On the data-plane cluster the api-key action is registered as

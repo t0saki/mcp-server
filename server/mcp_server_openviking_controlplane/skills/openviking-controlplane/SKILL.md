@@ -37,7 +37,7 @@ export AGENTPLAN_API_KEY=ark-xxxxxxxx
 ```bash
 ov-cp list                       # list collections (optionally --project X)
 ov-cp get     <ResourceID>       # collection info (Status, models, version, ...)
-ov-cp usage   <ResourceID>       # file counts / estimated cost
+ov-cp usage   <ResourceID>       # file counts / hourly CNY and AgentPlan AFP estimate
 ov-cp api-key <ResourceID>       # plaintext data-plane key {UserID, Role, ApiKey}
 ov-cp create  --name my_kb       # create a collection (see below)
 ov-cp update  <ResourceID> --description "..."   # update fields / switch billing
@@ -52,6 +52,10 @@ ov-cp user delete   <ResourceID> xiaohong --yes      # revoke a user's credentia
 
 Output is JSON. Errors print `Error [Code]: Message` to stderr with exit code 1.
 `ov-cp --help` and `ov-cp <cmd> --help` work without any config.
+
+`usage` keeps `EstimatedCosts` for compatibility and adds `EstimatedBilling`.
+That object identifies the hourly period and CNY estimate; AgentPlan-paid
+collections also include the AFP amount and business scenario.
 
 ## Creating a collection
 

@@ -109,6 +109,10 @@ uv run ov-cp user delete   <ResourceID> xiaohong --yes
 uv run ov-cp delete <ResourceID> --yes
 ```
 
+`usage` 保留后端原有的 `EstimatedCosts` 字段，同时新增 `EstimatedBilling`，
+明确费用为每小时 CNY 估值。AgentPlan 支付的库还会返回对应的 AFP 抵扣量和
+支付场景；`volc_pay` 只返回 CNY。
+
 命令行参数优先于环境变量。端点默认指向公网网关；仅在测试时（如指向 port-forward）才用
 `-e` / `VIKING_ENDPOINT` 覆盖：`uv run ov-cp -e http://localhost:18080 list`。
 `ov-cp --help` 不需要任何配置即可运行。
