@@ -21,6 +21,9 @@ logger = logging.getLogger(__name__)
 # breaks the request. We always send a freshly serialized JSON body.
 _DROP_HEADERS = {"content-length", "connection", "accept-encoding"}
 _AFP_PER_CNY = Decimal("500")
+# A control plane that still rebuilds both model configs on every update
+# rejects a metadata-only request with this message; see update_collection.
+_MODEL_REPLAY_ERROR = "apikey is empty"
 
 
 def _format_decimal(value: Decimal) -> str:
@@ -310,7 +313,13 @@ class ControlPlaneClient:
         VLM and Embedding are sent only when explicitly supplied. This preserves
         existing multi-credential model configuration during description or billing
         updates. Passing an empty/whitespace Description is a server-side no-op.
-        ``extra`` is merged verbatim for forward-compatibility."""
+        ``extra`` is merged verbatim for forward-compatibility.
+
+        A control plane that still rebuilds both models on every update rejects
+        such a metadata-only request with "apikey is empty": it rebuilds from the
+        legacy flat ApiKey, which is blank once a collection stores an
+        N-credential list. We then replay the collection's own credentials once
+        and retry — see ``_replay_model_blocks``."""
         payment = build_payment_config(pay_type, seat_id)
         body: Dict[str, Any] = {"ResourceID": resource_id}
         if vlm is not None:
@@ -327,7 +336,104 @@ class ControlPlaneClient:
             body["Description"] = description
         if extra:
             body.update(extra)
-        return self._request("UpdateOpenVikingCollection", body)
+        try:
+            return self._request("UpdateOpenVikingCollection", body)
+        except ControlPlaneError as exc:
+            if "VLM" in body or "Embedding" in body:
+                raise  # the caller's own model credentials were rejected
+            if _MODEL_REPLAY_ERROR not in exc.message.lower():
+                raise
+            logger.warning(
+                "control plane rejected a metadata-only update with %r; "
+                "replaying the collection's existing model credentials",
+                exc.message,
+            )
+            blocks = self._replay_model_blocks(resource_id)
+            body.update(blocks)
+            result = self._request("UpdateOpenVikingCollection", body)
+            if isinstance(result, dict):
+                result["Note"] = self._replay_note(blocks)
+            return result
+
+    def _replay_model_blocks(self, resource_id: str) -> Dict[str, Any]:
+        """Rebuild VLM/Embedding request blocks from the collection's own config.
+
+        Used only to work around a control plane that rebuilds both models even
+        for a metadata-only update. The Get response masks every ApiKey, so a
+        credential can be replayed only through its ApiKeyID — except the
+        AgentPlan one, whose model key is the control-plane key we already
+        authenticate with (exactly how ``create_collection`` builds it)."""
+        collection = self.get_collection(resource_id)
+        blocks: Dict[str, Any] = {}
+        for label, default_model in (
+            ("VLM", DEFAULT_VLM_MODEL),
+            ("Embedding", DEFAULT_EMBEDDING_MODEL),
+        ):
+            config = collection.get(label)
+            credentials = config.get("Credentials") if isinstance(config, dict) else None
+            if not credentials:
+                raise ControlPlaneError(
+                    "CredentialNotReplayable",
+                    f"{label} has no credentials to replay; pass the model "
+                    f"configuration explicitly to update this collection.",
+                )
+            blocks[label] = {
+                "ModelName": config.get("ModelName") or default_model,
+                "Credentials": [
+                    self._replay_credential(cred, label) for cred in credentials
+                ],
+            }
+        return blocks
+
+    def _replay_credential(self, cred: Dict[str, Any], label: str) -> Dict[str, Any]:
+        """Rebuild one request credential from a masked Get response entry."""
+        source = str(cred.get("Source") or "").strip()
+        replayed: Dict[str, Any] = {"Source": source}
+        provider = str(cred.get("Provider") or "").strip()
+        if provider:
+            replayed["Provider"] = provider
+
+        api_key_id = str(cred.get("ApiKeyID") or "").strip()
+        if api_key_id:  # server-side lookup; the plaintext key never reaches us
+            replayed["ApiKeyID"] = api_key_id
+        elif source == "agentplan":
+            replayed["ApiKey"] = self.config.api_key
+        else:
+            raise ControlPlaneError(
+                "CredentialNotReplayable",
+                f"{label} credential {source!r} carries no ApiKeyID and its "
+                f"ApiKey is masked in the Get response; pass the model "
+                f"configuration explicitly to update this collection.",
+            )
+
+        endpoint_id = str(cred.get("EndpointID") or "").strip()
+        if source == "volcengine":  # required by the backend for this source only
+            if not endpoint_id:
+                raise ControlPlaneError(
+                    "CredentialNotReplayable",
+                    f"{label} volcengine credential has no EndpointID to replay.",
+                )
+            replayed["EndpointID"] = endpoint_id
+        return replayed
+
+    @staticmethod
+    def _replay_note(blocks: Dict[str, Any]) -> str:
+        """Explain the replay in the result, since it rewrites stored credentials."""
+        note = (
+            "The control plane rebuilt both model configurations on this update, "
+            "so the collection's existing credentials were replayed."
+        )
+        rewritten = any(
+            "ApiKey" in cred
+            for block in blocks.values()
+            for cred in block["Credentials"]
+        )
+        if rewritten:
+            note += (
+                " The AgentPlan model credential was re-set to the key this "
+                "client authenticates with."
+            )
+        return note
 
     def delete_collection(self, resource_id: str) -> Dict[str, Any]:
         return self._request("DeleteOpenVikingCollection", {"ResourceID": resource_id})

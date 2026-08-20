@@ -56,6 +56,13 @@ After `user update --regenerate-key`, fetch the replacement with
 `api-key <ResourceID> --user-id <UserID>`; the update response only confirms
 success and does not contain the new key.
 
+`update` never sends model configuration. Against a control plane that still
+rebuilds both models on every update (it rejects a metadata-only request with
+`apikey is empty`), `update` reads the library's own credentials back and
+replays them once, reporting it in the response `Note`. A non-AgentPlan
+credential stored without an ApiKeyID cannot be replayed — the update is
+refused rather than guessed at.
+
 In a terminal, output defaults to structured Rich views. Pipes and redirects
 automatically receive standard JSON, so `ov-cp list | jq ...` and command
 substitution remain safe. Use the global `--json`, `--output json-compact`, or

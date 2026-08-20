@@ -101,6 +101,9 @@ uv run ov-cp create --name my_kb --version enterprise \
 # 更新库可变字段（只改传入的字段）；也用于切换计费方式 / 换绑席位
 uv run ov-cp update <ResourceID> --description "新描述"
 uv run ov-cp update <ResourceID> --pay-type volc_pay
+# 这些命令不会发送模型配置。若控制面仍在每次更新时重建模型，`update` 会读回该库
+# 自身的凭证重放一次，并在响应 Note 中说明；除 AgentPlan 外，没有 ApiKeyID 的
+# 凭证无法重放，此时更新会被拒绝而不是猜测。
 
 # 管理企业版库的用户（key 需与该库已关联）
 uv run ov-cp user list     <ResourceID>
