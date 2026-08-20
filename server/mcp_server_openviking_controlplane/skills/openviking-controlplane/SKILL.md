@@ -72,18 +72,14 @@ collections also include the AFP amount and business scenario.
 ⚠️ **Billable + requires the account to have AgentPlan deduction activated** (else
 `ProductUnordered`). Confirm with the user before creating. Max 20 libraries/account.
 
-For `--source agentplan` (default) you only need `--name`: the VLM/Embedding model
-names default to `doubao-seed-2.0-lite` / `doubao-embedding-vision`, and the model
-ApiKey falls back to the configured AgentPlan key.
+The public create command always uses the AgentPlan model path and the configured
+AgentPlan key. It does not expose model source, model parameters, model credentials,
+or an OpenViking image-version override.
 
 ```bash
 ov-cp create --name my_kb
 # enterprise tier (higher capacity, enterprise billing rates):
 ov-cp create --name my_kb --version enterprise
-# other sources need explicit model creds:
-ov-cp create --name my_kb --source volcengine \
-  --vlm-api-key-id <id> --vlm-endpoint-id <ep> \
-  --emb-api-key-id <id> --emb-endpoint-id <ep>
 ```
 
 `--version` is `developer` (default) or `enterprise`; any other value is rejected

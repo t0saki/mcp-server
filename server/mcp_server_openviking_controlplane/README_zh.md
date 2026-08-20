@@ -79,8 +79,8 @@ uv run ov-cp usage <ResourceID>
 uv run ov-cp api-key <ResourceID>
 uv run ov-cp api-key <ResourceID> --user-id xiaohong
 
-# 建库（消耗付费配额；source=agentplan 时只需 --name，
-#       模型名取默认、模型 ApiKey 回落到配置的 key）
+# 建库（消耗付费配额；固定使用 AgentPlan 模型路径和已配置的 AgentPlan key，
+#       不开放模型来源、模型参数、模型鉴权与 OpenViking 镜像版本）
 uv run ov-cp create --name my_kb
 
 # 建企业版库（容量更高，按企业版费率计费）

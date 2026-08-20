@@ -7,8 +7,6 @@ import typer
 
 from mcp_server_openviking_controlplane.client import ControlPlaneClient, ControlPlaneError
 from mcp_server_openviking_controlplane.config import (
-    DEFAULT_EMBEDDING_MODEL,
-    DEFAULT_VLM_MODEL,
     build_config,
     parse_extra_headers,
 )
@@ -66,26 +64,6 @@ def _client(ctx: typer.Context) -> ControlPlaneClient:
         return state.client_factory()
     except Exception as e:
         raise _fail(e)
-
-
-def _model_cfg(
-    model_name: str,
-    api_key_id: Optional[str],
-    api_key: Optional[str],
-    endpoint_id: Optional[str],
-) -> Dict[str, Any]:
-    """Assemble a VLM/Embedding model config from whatever the caller supplied.
-
-    No key is required here: for the ``agentplan`` source the client fills in the
-    configured AgentPlan ApiKey; other sources are validated server-side."""
-    cfg: Dict[str, Any] = {"ModelName": model_name}
-    if api_key_id:
-        cfg["ApiKeyID"] = api_key_id
-    if api_key:
-        cfg["ApiKey"] = api_key
-    if endpoint_id:
-        cfg["EndpointID"] = endpoint_id
-    return cfg
 
 
 @app.callback()
@@ -195,23 +173,13 @@ def api_key_cmd(
 def create_cmd(
     ctx: typer.Context,
     name: str = typer.Option(..., help="Library name ^[a-zA-Z][a-zA-Z0-9_]*$, <=64."),
-    source: str = typer.Option("agentplan", help="Model source: agentplan | volcengine | codeplan."),
     version: VersionOption = typer.Option(
         VersionOption.DEVELOPER,
         help="Library tier: developer (default) | enterprise "
              "(higher capacity, billed at enterprise rates).",
     ),
-    vlm_model: str = typer.Option(DEFAULT_VLM_MODEL, help="VLM ModelName."),
-    vlm_api_key_id: Optional[str] = typer.Option(None, help="VLM ApiKeyID (exclusive with --vlm-api-key)."),
-    vlm_api_key: Optional[str] = typer.Option(None, help="VLM ApiKey (defaults to --api-key when source=agentplan)."),
-    vlm_endpoint_id: Optional[str] = typer.Option(None, help="VLM EndpointID (volcengine source only)."),
-    emb_model: str = typer.Option(DEFAULT_EMBEDDING_MODEL, help="Embedding ModelName."),
-    emb_api_key_id: Optional[str] = typer.Option(None, help="Embedding ApiKeyID (exclusive with --emb-api-key)."),
-    emb_api_key: Optional[str] = typer.Option(None, help="Embedding ApiKey (defaults to --api-key when source=agentplan)."),
-    emb_endpoint_id: Optional[str] = typer.Option(None, help="Embedding EndpointID (volcengine source only)."),
     project: Optional[str] = typer.Option(None, help="Project name (defaults to configured)."),
     description: Optional[str] = typer.Option(None, help="Description, <=65535 chars."),
-    openviking_version: Optional[str] = typer.Option(None, help="Image version (optional)."),
     pay_type: Optional[PayTypeOption] = typer.Option(
         None, "--pay-type",
         help="Billing: agentplan_personal (personal AgentPlan AFP deduction; the "
@@ -233,8 +201,9 @@ def create_cmd(
 ):
     """Create a new collection (consumes paid quota; max 20 per account).
 
-    For source=agentplan you can pass just --name: the model names default to the
-    AgentPlan models and the model ApiKey falls back to --api-key / AGENTPLAN_API_KEY.
+    Model source, model parameters, model credentials, and the OpenViking image
+    version are not configurable here. Creation always uses the AgentPlan model
+    path and the configured AgentPlan API key.
 
     ⚠️ Billing: without --pay-type the library defaults to agentplan_personal
     (AFP deduction from the account's personal AgentPlan). Enterprise seat
@@ -251,20 +220,15 @@ def create_cmd(
             "--seat-id ... (or volc_pay) instead.",
             err=True,
         )
-    vlm = _model_cfg(vlm_model, vlm_api_key_id, vlm_api_key, vlm_endpoint_id)
-    embedding = _model_cfg(emb_model, emb_api_key_id, emb_api_key, emb_endpoint_id)
     try:
         _print(
             ctx,
             client.create_collection(
                 name=name,
-                source=source,
-                vlm=vlm,
-                embedding=embedding,
+                source="agentplan",
                 version=version.value,
                 project=project,
                 description=description,
-                openviking_version=openviking_version,
                 pay_type=pay_type.value if pay_type else None,
                 seat_id=seat_id,
             ),

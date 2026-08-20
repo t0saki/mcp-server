@@ -85,8 +85,8 @@ uv run ov-cp usage <ResourceID>
 uv run ov-cp api-key <ResourceID>
 uv run ov-cp api-key <ResourceID> --user-id xiaohong
 
-# create (consumes paid quota; with source=agentplan only --name is needed —
-#         model names default, and the model ApiKey falls back to the configured key)
+# create (consumes paid quota; always uses the AgentPlan model path and the
+# configured AgentPlan key; model source/parameters and image version are hidden)
 uv run ov-cp create --name my_kb
 
 # create an enterprise-tier library (higher capacity, enterprise billing rates)

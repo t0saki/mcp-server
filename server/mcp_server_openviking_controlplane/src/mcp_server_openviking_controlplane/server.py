@@ -114,13 +114,9 @@ def get_collection_api_key(
 @mcp.tool()
 def create_collection(
     name: str,
-    vlm: Optional[Dict[str, Any]] = None,
-    embedding: Optional[Dict[str, Any]] = None,
-    source: str = "agentplan",
     version: str = "developer",
     project: Optional[str] = None,
     description: Optional[str] = None,
-    openviking_version: Optional[str] = None,
     pay_type: Optional[str] = None,
     seat_id: Optional[str] = None,
 ) -> Dict[str, Any]:
@@ -141,20 +137,17 @@ def create_collection(
     personal plan, deduction fails and the library is disabled. Confirm the
     intended billing with the user before creating.
 
+    The public tool always uses the AgentPlan model path. Model source, model
+    parameters, model credentials, and the OpenViking image version are intentionally
+    not configurable here.
+
     Args:
         name: library name, regex ^[a-zA-Z][a-zA-Z0-9_]*$, length <= 64.
-        vlm: optional VLM model config, e.g. {"ModelName": "...", "ApiKeyID": "..."}.
-             For source="agentplan" this can be omitted — the model name defaults
-             to the AgentPlan VLM and the ApiKey falls back to the configured
-             AgentPlan key. ApiKeyID and ApiKey are mutually exclusive.
-        embedding: optional embedding model config, same shape/defaults as vlm.
-        source: model source — "agentplan" (default), "volcengine", or "codeplan".
         version: library tier — "developer" (default) or "enterprise". Sets the
                  RATE only (enterprise: 25 AFP baseline / 200k files, then tiered
                  per 100k files beyond); billing SOURCE is pay_type, orthogonal.
         project: project name; defaults to the configured project.
         description: optional, length <= 65535.
-        openviking_version: optional image version.
         pay_type: how the library is billed — "agentplan_personal" (personal
                   AgentPlan AFP deduction; the default when omitted),
                   "agentplan_enterprise" (an enterprise seat's AFP pays;
@@ -174,13 +167,10 @@ def create_collection(
     try:
         return get_client().create_collection(
             name=name,
-            source=source,
-            vlm=vlm,
-            embedding=embedding,
+            source="agentplan",
             version=version,
             project=project,
             description=description,
-            openviking_version=openviking_version,
             pay_type=pay_type,
             seat_id=seat_id,
         )
