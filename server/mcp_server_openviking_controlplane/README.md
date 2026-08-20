@@ -111,7 +111,10 @@ uv run ov-cp create --name my_kb --version enterprise \
 # also switches billing (volc_pay <-> AgentPlan, or re-bind a seat)
 uv run ov-cp update <ResourceID> --description "new description"
 uv run ov-cp update <ResourceID> --pay-type volc_pay
-# Model configuration is never sent by these commands. If the control plane
+# overwrite the library's AgentPlan MODEL credential (VLM and Embedding share it);
+# the library's other credentials are replayed unchanged
+uv run ov-cp update <ResourceID> --model-api-key ark-xxxxxxxx
+# Without --model-api-key no model configuration is sent. If the control plane
 # still rebuilds both models on every update, `update` replays the library's
 # own credentials once and says so in the response Note; a credential with no
 # ApiKeyID (other than AgentPlan) cannot be replayed and the update is refused.

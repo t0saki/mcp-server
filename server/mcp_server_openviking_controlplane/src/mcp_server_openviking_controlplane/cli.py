@@ -256,6 +256,13 @@ def update_cmd(
              "agentplan_enterprise (also how to re-bind after a seat was "
              "unbound). The server does NOT check the seat exists.",
     ),
+    model_api_key: Optional[str] = typer.Option(
+        None, "--model-api-key",
+        help="Overwrite the library's AgentPlan MODEL credential with this key "
+             "(VLM and Embedding always share one). Omit to leave model "
+             "credentials alone; the library's other credentials are kept "
+             "either way.",
+    ),
 ):
     """Update mutable fields of a collection (only passed fields change).
 
@@ -272,6 +279,7 @@ def update_cmd(
                 description=description,
                 pay_type=pay_type.value if pay_type else None,
                 seat_id=seat_id,
+                model_api_key=model_api_key,
             ),
             "success",
         )

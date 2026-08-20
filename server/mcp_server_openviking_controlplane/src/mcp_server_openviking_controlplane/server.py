@@ -185,6 +185,7 @@ def update_collection(
     description: Optional[str] = None,
     pay_type: Optional[str] = None,
     seat_id: Optional[str] = None,
+    model_api_key: Optional[str] = None,
 ) -> Dict[str, Any]:
     """Update mutable fields of an OpenViking collection (UpdateOpenVikingCollection).
 
@@ -192,10 +193,10 @@ def update_collection(
     THE USER before calling — this mutates a live library. This is also the way to
     SWITCH BILLING (volc_pay ↔ AgentPlan deduction, or re-bind a seat after it
     was unbound); omitting both pay_type and seat_id leaves billing untouched.
-    Model configuration is not sent by this tool, so description and billing
-    changes preserve existing VLM/Embedding credentials. NOTE: an empty/whitespace
-    description is a server-side no-op — the description can only be overwritten
-    with a non-empty value.
+    Model configuration is not sent unless model_api_key is given, so description
+    and billing changes preserve existing VLM/Embedding credentials. NOTE: an
+    empty/whitespace description is a server-side no-op — the description can only
+    be overwritten with a non-empty value.
 
     Args:
         resource_id: target library ResourceID.
@@ -209,9 +210,14 @@ def update_collection(
                  pay_type="agentplan_enterprise", forbidden otherwise. Copied
                  manually by the user from the Ark console seat-management page;
                  the server does NOT verify the seat exists.
+        model_api_key: AgentPlan API key to write as the library's MODEL
+                       credential; VLM and Embedding always share one key. Only
+                       pass a key the user supplied for this purpose — it
+                       REPLACES the stored model credential. Omit to leave model
+                       credentials untouched.
 
     Returns:
-        {"Success": true}
+        {"Success": true}, plus "Note" when model credentials were rewritten.
     """
     try:
         return get_client().update_collection(
@@ -219,6 +225,7 @@ def update_collection(
             description=description,
             pay_type=pay_type,
             seat_id=seat_id,
+            model_api_key=model_api_key,
         )
     except Exception as e:
         logger.error(f"update_collection failed: {e}")

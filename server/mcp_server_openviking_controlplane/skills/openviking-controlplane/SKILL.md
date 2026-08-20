@@ -42,6 +42,7 @@ ov-cp api-key <ResourceID>       # default user's plaintext data-plane key
 ov-cp api-key <ResourceID> --user-id xiaohong  # selected user's plaintext key
 ov-cp create  --name my_kb       # create a collection (see below)
 ov-cp update  <ResourceID> --description "..."   # update fields / switch billing
+ov-cp update  <ResourceID> --model-api-key ark-xxx  # overwrite AgentPlan model key
 ov-cp delete  <ResourceID> --yes # delete (irreversible; uninstalls the Helm release)
 
 # users of an enterprise-tier library (key must be associated with the library):
@@ -56,12 +57,18 @@ After `user update --regenerate-key`, fetch the replacement with
 `api-key <ResourceID> --user-id <UserID>`; the update response only confirms
 success and does not contain the new key.
 
-`update` never sends model configuration. Against a control plane that still
-rebuilds both models on every update (it rejects a metadata-only request with
-`apikey is empty`), `update` reads the library's own credentials back and
-replays them once, reporting it in the response `Note`. A non-AgentPlan
-credential stored without an ApiKeyID cannot be replayed — the update is
-refused rather than guessed at.
+`update --model-api-key <ark-key>` overwrites the library's AgentPlan MODEL
+credential; VLM and Embedding always share one key, and the library's other
+credentials are replayed unchanged. Only pass a key the user gave you for this
+purpose — it REPLACES what is stored. A library with no AgentPlan model
+credential is refused rather than reshaped.
+
+Without that flag `update` sends no model configuration at all. Against a
+control plane that still rebuilds both models on every update (it rejects a
+metadata-only request with `apikey is empty`), `update` reads the library's own
+credentials back and replays them once, reporting it in the response `Note`. A
+non-AgentPlan credential stored without an ApiKeyID cannot be replayed — the
+update is refused rather than guessed at.
 
 In a terminal, output defaults to structured Rich views. Pipes and redirects
 automatically receive standard JSON, so `ov-cp list | jq ...` and command

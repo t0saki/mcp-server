@@ -301,6 +301,7 @@ class ControlPlaneClient:
         embedding: Optional[Dict[str, Any]] = None,
         pay_type: Optional[str] = None,
         seat_id: Optional[str] = None,
+        model_api_key: Optional[str] = None,
         extra: Optional[Dict[str, Any]] = None,
     ) -> Dict[str, Any]:
         """Update a collection's mutable fields (e.g. Description, PaymentConfig).
@@ -319,7 +320,13 @@ class ControlPlaneClient:
         such a metadata-only request with "apikey is empty": it rebuilds from the
         legacy flat ApiKey, which is blank once a collection stores an
         N-credential list. We then replay the collection's own credentials once
-        and retry — see ``_replay_model_blocks``."""
+        and retry — see ``_replay_model_blocks``.
+
+        ``model_api_key`` overwrites the AgentPlan model credential of BOTH
+        models with the supplied key (they always share one). It is sent up
+        front rather than only on retry, since replacing a stored credential is
+        a deliberate act; the collection's other credentials are still replayed
+        untouched. Mutually exclusive with explicit vlm / embedding blocks."""
         payment = build_payment_config(pay_type, seat_id)
         body: Dict[str, Any] = {"ResourceID": resource_id}
         if vlm is not None:
@@ -336,6 +343,18 @@ class ControlPlaneClient:
             body["Description"] = description
         if extra:
             body.update(extra)
+        if model_api_key:
+            if vlm is not None or embedding is not None:
+                raise ValueError(
+                    "model_api_key cannot be combined with an explicit vlm / "
+                    "embedding block; put the key in that block instead"
+                )
+            blocks = self._replay_model_blocks(resource_id, model_api_key)
+            body.update(blocks)
+            result = self._request("UpdateOpenVikingCollection", body)
+            if isinstance(result, dict):
+                result["Note"] = self._replay_note(blocks, explicit_key=True)
+            return result
         try:
             return self._request("UpdateOpenVikingCollection", body)
         except ControlPlaneError as exc:
@@ -352,16 +371,21 @@ class ControlPlaneClient:
             body.update(blocks)
             result = self._request("UpdateOpenVikingCollection", body)
             if isinstance(result, dict):
-                result["Note"] = self._replay_note(blocks)
+                result["Note"] = self._replay_note(blocks, explicit_key=False)
             return result
 
-    def _replay_model_blocks(self, resource_id: str) -> Dict[str, Any]:
+    def _replay_model_blocks(
+        self,
+        resource_id: str,
+        agentplan_key: Optional[str] = None,
+    ) -> Dict[str, Any]:
         """Rebuild VLM/Embedding request blocks from the collection's own config.
 
-        Used only to work around a control plane that rebuilds both models even
-        for a metadata-only update. The Get response masks every ApiKey, so a
-        credential can be replayed only through its ApiKeyID — except the
-        AgentPlan one, whose model key is the control-plane key we already
+        Used to work around a control plane that rebuilds both models even for a
+        metadata-only update, and to carry an explicit AgentPlan model key. The
+        Get response masks every ApiKey, so a credential can be replayed only
+        through its ApiKeyID — except the AgentPlan one, whose model key is
+        ``agentplan_key`` or, by default, the control-plane key we already
         authenticate with (exactly how ``create_collection`` builds it)."""
         collection = self.get_collection(resource_id)
         blocks: Dict[str, Any] = {}
@@ -380,12 +404,24 @@ class ControlPlaneClient:
             blocks[label] = {
                 "ModelName": config.get("ModelName") or default_model,
                 "Credentials": [
-                    self._replay_credential(cred, label) for cred in credentials
+                    self._replay_credential(cred, label, agentplan_key)
+                    for cred in credentials
                 ],
             }
+        if agentplan_key and not self._has_agentplan_credential(blocks):
+            raise ControlPlaneError(
+                "CredentialNotReplayable",
+                "this collection has no AgentPlan model credential to overwrite; "
+                "pass the model configuration explicitly instead.",
+            )
         return blocks
 
-    def _replay_credential(self, cred: Dict[str, Any], label: str) -> Dict[str, Any]:
+    def _replay_credential(
+        self,
+        cred: Dict[str, Any],
+        label: str,
+        agentplan_key: Optional[str] = None,
+    ) -> Dict[str, Any]:
         """Rebuild one request credential from a masked Get response entry."""
         source = str(cred.get("Source") or "").strip()
         replayed: Dict[str, Any] = {"Source": source}
@@ -394,7 +430,9 @@ class ControlPlaneClient:
             replayed["Provider"] = provider
 
         api_key_id = str(cred.get("ApiKeyID") or "").strip()
-        if api_key_id:  # server-side lookup; the plaintext key never reaches us
+        if agentplan_key and source == "agentplan":  # explicit overwrite wins
+            replayed["ApiKey"] = agentplan_key
+        elif api_key_id:  # server-side lookup; the plaintext key never reaches us
             replayed["ApiKeyID"] = api_key_id
         elif source == "agentplan":
             replayed["ApiKey"] = self.config.api_key
@@ -417,18 +455,27 @@ class ControlPlaneClient:
         return replayed
 
     @staticmethod
-    def _replay_note(blocks: Dict[str, Any]) -> str:
+    def _has_agentplan_credential(blocks: Dict[str, Any]) -> bool:
+        return any(
+            cred.get("Source") == "agentplan"
+            for block in blocks.values()
+            for cred in block["Credentials"]
+        )
+
+    @classmethod
+    def _replay_note(cls, blocks: Dict[str, Any], explicit_key: bool) -> str:
         """Explain the replay in the result, since it rewrites stored credentials."""
+        if explicit_key:
+            return (
+                "The AgentPlan model credential of both VLM and Embedding was "
+                "overwritten with the supplied key; the collection's other "
+                "credentials were replayed unchanged."
+            )
         note = (
             "The control plane rebuilt both model configurations on this update, "
             "so the collection's existing credentials were replayed."
         )
-        rewritten = any(
-            "ApiKey" in cred
-            for block in blocks.values()
-            for cred in block["Credentials"]
-        )
-        if rewritten:
+        if cls._has_agentplan_credential(blocks):
             note += (
                 " The AgentPlan model credential was re-set to the key this "
                 "client authenticates with."
