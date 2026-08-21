@@ -3,7 +3,7 @@ import logging
 import os
 from typing import Any, Dict, Optional
 
-from mcp.server import FastMCP
+from mcp.server.fastmcp import FastMCP
 
 from mcp_server_openviking_controlplane.client import ControlPlaneError, get_client
 
