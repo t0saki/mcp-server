@@ -227,6 +227,11 @@ Stateless is the default: every request carries its own context, so no request
 depends on a prior `Mcp-Session-Id` and the process can be scaled horizontally
 behind a gateway.
 
+The server speaks MCP protocol revision **2026-07-28** — the per-request-envelope
+revision, reached via `server/discover` rather than an `initialize` handshake — and
+still negotiates the older handshake revisions (down to `2024-11-05`) for clients
+that ask for them. This requires the mcp SDK 2.x line.
+
 | Env var | Meaning | Default |
 |---|---|---|
 | `MCP_SERVER_HOST` | HTTP bind address | `0.0.0.0` |

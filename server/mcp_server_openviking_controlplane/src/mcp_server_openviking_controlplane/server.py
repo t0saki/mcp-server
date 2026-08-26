@@ -3,7 +3,8 @@ import logging
 import os
 from typing import Any, Dict, Optional
 
-from mcp.server.fastmcp import FastMCP
+from mcp.server.mcpserver import MCPServer
+from mcp.server.mcpserver.context import Context
 
 from mcp_server_openviking_controlplane.client import (
     ControlPlaneClient,
@@ -16,45 +17,44 @@ logging.basicConfig(
     level=logging.INFO, format="%(asctime)s - %(name)s - %(levelname)s - %(message)s"
 )
 
-# Create MCP server.
-#
-# host must be set explicitly: FastMCP defaults to 127.0.0.1 and then auto-enables
-# DNS-rebinding protection that only allows localhost Host headers, so a server
-# behind a gateway or load balancer would reject every request.
-mcp = FastMCP(
-    "OpenViking Control Plane MCP Server",
-    host=os.getenv("MCP_SERVER_HOST", "0.0.0.0"),
-    port=int(os.getenv("MCP_SERVER_PORT") or os.getenv("PORT", "8000")),
-    streamable_http_path=os.getenv("STREAMABLE_HTTP_PATH", "/mcp"),
-    # STATLESS_HTTP is the (misspelled) name the other servers in this repo already
-    # use and document; STATELESS_HTTP is accepted as a correct-spelling alias so a
-    # right-spelled config is not silently ignored. Stateless is the default: it is
-    # what a horizontally scaled gateway needs, and it is a no-op for stdio and sse.
-    stateless_http=os.getenv("STATLESS_HTTP", os.getenv("STATELESS_HTTP", "true")).lower()
-    == "true",
-)
+# Create MCP server. Transport options (host, port, path, stateless) are arguments
+# to run() in mcp 2.x rather than constructor settings.
+mcp = MCPServer("OpenViking Control Plane MCP Server")
 
 
-# Header a gateway can use to forward the caller's Ark AgentPlan ApiKey when it needs
-# Authorization for its own auth. Checked before Authorization.
+def _transport_options(transport: str) -> Dict[str, Any]:
+    """Transport-specific keyword arguments for MCPServer.run()."""
+    if transport == "stdio":
+        return {}
+    options: Dict[str, Any] = {
+        "host": os.getenv("MCP_SERVER_HOST", "0.0.0.0"),
+        "port": int(os.getenv("MCP_SERVER_PORT") or os.getenv("PORT", "8000")),
+    }
+    if transport == "streamable-http":
+        options["streamable_http_path"] = os.getenv("STREAMABLE_HTTP_PATH", "/mcp")
+        # STATLESS_HTTP is the (misspelled) name the other servers in this repo
+        # already use and document; STATELESS_HTTP is accepted as a correct-spelling
+        # alias so a right-spelled config is not silently ignored.
+        options["stateless_http"] = (
+            os.getenv("STATLESS_HTTP", os.getenv("STATELESS_HTTP", "true")).lower() == "true"
+        )
+    return options
+
+
 _API_KEY_HEADER = "x-agentplan-api-key"
 
 
-def _request_api_key() -> Optional[str]:
+def _request_api_key(ctx: Optional[Context]) -> Optional[str]:
     """The Ark AgentPlan ApiKey carried by the request currently being served, if any.
 
-    Returns None under stdio (there is no HTTP request) and None when the request
-    carries no usable credential, in which case the client falls back to the
-    AGENTPLAN_API_KEY environment variable.
+    Returns None under stdio (Context.headers is None when the transport carries no
+    request) and None when the request carries no usable credential, in which case
+    the client falls back to the AGENTPLAN_API_KEY environment variable.
     """
-    try:
-        raw_request = mcp.get_context().request_context.request
-    except (ValueError, LookupError, AttributeError):
-        return None
-    if raw_request is None:
+    headers = ctx.headers if ctx is not None else None
+    if not headers:
         return None
 
-    headers = raw_request.headers
     key = (headers.get(_API_KEY_HEADER) or "").strip()
     if key:
         return key
@@ -69,14 +69,14 @@ def _request_api_key() -> Optional[str]:
     return None
 
 
-def get_client() -> ControlPlaneClient:
+def get_client(ctx: Optional[Context] = None) -> ControlPlaneClient:
     """Build the control-plane client for the request currently being served.
 
     Deliberately not cached: under stateless HTTP a module-level singleton would
     transact every request with whatever credential the process started with.
     Construction is cheap -- the client holds no requests.Session and no sockets.
     """
-    return build_client(api_key=_request_api_key())
+    return build_client(api_key=_request_api_key(ctx))
 
 
 def _err(e: Exception) -> Dict[str, Any]:
@@ -86,7 +86,9 @@ def _err(e: Exception) -> Dict[str, Any]:
 
 
 @mcp.tool()
-def list_collections(project: Optional[str] = None) -> Dict[str, Any]:
+def list_collections(
+    project: Optional[str] = None, ctx: Optional[Context] = None
+) -> Dict[str, Any]:
     """List OpenViking collections (OV libraries) under the configured account.
 
     Args:
@@ -97,14 +99,16 @@ def list_collections(project: Optional[str] = None) -> Dict[str, Any]:
         {"Collections": [ ...CollectionInfoData... ]}
     """
     try:
-        return get_client().list_collections(project=project)
+        return get_client(ctx).list_collections(project=project)
     except Exception as e:
         logger.error(f"list_collections failed: {e}")
         return _err(e)
 
 
 @mcp.tool()
-def get_collection(resource_id: str) -> Dict[str, Any]:
+def get_collection(
+    resource_id: str, ctx: Optional[Context] = None
+) -> Dict[str, Any]:
     """Get basic info of one OpenViking collection by ResourceID.
 
     Args:
@@ -116,14 +120,16 @@ def get_collection(resource_id: str) -> Dict[str, Any]:
         UpdateTime (Unix seconds), etc.
     """
     try:
-        return get_client().get_collection(resource_id)
+        return get_client(ctx).get_collection(resource_id)
     except Exception as e:
         logger.error(f"get_collection failed: {e}")
         return _err(e)
 
 
 @mcp.tool()
-def get_usage(resource_id: str) -> Dict[str, Any]:
+def get_usage(
+    resource_id: str, ctx: Optional[Context] = None
+) -> Dict[str, Any]:
     """Get overall usage / file counts for one OpenViking collection by ResourceID.
 
     Args:
@@ -137,7 +143,7 @@ def get_usage(resource_id: str) -> Dict[str, Any]:
          three top-level dirs only; per-uri breakdown is not supported.
     """
     try:
-        return get_client().get_usage(resource_id)
+        return get_client(ctx).get_usage(resource_id)
     except Exception as e:
         logger.error(f"get_usage failed: {e}")
         return _err(e)
@@ -147,6 +153,7 @@ def get_usage(resource_id: str) -> Dict[str, Any]:
 def get_collection_api_key(
     resource_id: str,
     user_id: Optional[str] = None,
+    ctx: Optional[Context] = None,
 ) -> Dict[str, Any]:
     """Get one user's plaintext data-plane API Key.
 
@@ -164,7 +171,7 @@ def get_collection_api_key(
         {"UserID", "Role", "ApiKey"}
     """
     try:
-        return get_client().get_user_access(resource_id, user_id=user_id)
+        return get_client(ctx).get_user_access(resource_id, user_id=user_id)
     except Exception as e:
         logger.error(f"get_collection_api_key failed: {e}")
         return _err(e)
@@ -178,6 +185,7 @@ def create_collection(
     description: Optional[str] = None,
     pay_type: Optional[str] = None,
     seat_id: Optional[str] = None,
+    ctx: Optional[Context] = None,
 ) -> Dict[str, Any]:
     """⚠️ Creates a NEW, BILLABLE OpenViking collection (provisions a Helm release).
 
@@ -224,7 +232,7 @@ def create_collection(
         {"ResourceID": "...", "Success": true}
     """
     try:
-        return get_client().create_collection(
+        return get_client(ctx).create_collection(
             name=name,
             source="agentplan",
             version=version,
@@ -245,6 +253,7 @@ def update_collection(
     pay_type: Optional[str] = None,
     seat_id: Optional[str] = None,
     model_api_key: Optional[str] = None,
+    ctx: Optional[Context] = None,
 ) -> Dict[str, Any]:
     """Update mutable fields of an OpenViking collection (UpdateOpenVikingCollection).
 
@@ -279,7 +288,7 @@ def update_collection(
         {"Success": true}, plus "Note" when model credentials were rewritten.
     """
     try:
-        return get_client().update_collection(
+        return get_client(ctx).update_collection(
             resource_id,
             description=description,
             pay_type=pay_type,
@@ -298,6 +307,7 @@ def list_collection_users(
     role: Optional[str] = None,
     page: int = 1,
     limit: int = 20,
+    ctx: Optional[Context] = None,
 ) -> Dict[str, Any]:
     """List the users registered under one OpenViking collection.
 
@@ -316,7 +326,7 @@ def list_collection_users(
         {"UserList": [ {"UserID", "Role", "ApiKey" (masked)} ], "Total": N}
     """
     try:
-        return get_client().list_collection_users(
+        return get_client(ctx).list_collection_users(
             resource_id,
             user_id=user_id,
             role=role,
@@ -329,7 +339,9 @@ def list_collection_users(
 
 
 @mcp.tool()
-def register_collection_user(resource_id: str, user_id: str) -> Dict[str, Any]:
+def register_collection_user(
+    resource_id: str, user_id: str, ctx: Optional[Context] = None
+) -> Dict[str, Any]:
     """Register a NEW user under an OpenViking collection (RegisterOpenVikingUser).
 
     Requires the AgentPlan key to be associated with the target library. CONFIRM
@@ -344,7 +356,7 @@ def register_collection_user(resource_id: str, user_id: str) -> Dict[str, Any]:
         {"Success": true}
     """
     try:
-        return get_client().register_user(resource_id, user_id)
+        return get_client(ctx).register_user(resource_id, user_id)
     except Exception as e:
         logger.error(f"register_collection_user failed: {e}")
         return _err(e)
@@ -355,6 +367,7 @@ def update_collection_user(
     resource_id: str,
     user_id: str,
     regenerate_key: bool,
+    ctx: Optional[Context] = None,
 ) -> Dict[str, Any]:
     """Update a user under an OpenViking collection (currently API Key rotation).
 
@@ -371,7 +384,7 @@ def update_collection_user(
         {"Success": true}
     """
     try:
-        return get_client().update_user(
+        return get_client(ctx).update_user(
             resource_id,
             user_id,
             regenerate_key=regenerate_key,
@@ -382,7 +395,9 @@ def update_collection_user(
 
 
 @mcp.tool()
-def delete_collection_user(resource_id: str, user_id: str) -> Dict[str, Any]:
+def delete_collection_user(
+    resource_id: str, user_id: str, ctx: Optional[Context] = None
+) -> Dict[str, Any]:
     """⚠️ Delete a user from an OpenViking collection (DeleteOpenVikingUser).
 
     CONFIRM WITH THE USER before calling. This revokes the user's credential and
@@ -396,14 +411,16 @@ def delete_collection_user(resource_id: str, user_id: str) -> Dict[str, Any]:
         {"Success": true}
     """
     try:
-        return get_client().delete_user(resource_id, user_id)
+        return get_client(ctx).delete_user(resource_id, user_id)
     except Exception as e:
         logger.error(f"delete_collection_user failed: {e}")
         return _err(e)
 
 
 @mcp.tool()
-def delete_collection(resource_id: str) -> Dict[str, Any]:
+def delete_collection(
+    resource_id: str, ctx: Optional[Context] = None
+) -> Dict[str, Any]:
     """⚠️ IRREVERSIBLY deletes an OpenViking collection (uninstalls its Helm release).
 
     CONFIRM WITH THE USER before calling. This cannot be undone; all data in the
@@ -416,7 +433,7 @@ def delete_collection(resource_id: str) -> Dict[str, Any]:
         {"Success": true}
     """
     try:
-        return get_client().delete_collection(resource_id)
+        return get_client(ctx).delete_collection(resource_id)
     except Exception as e:
         logger.error(f"delete_collection failed: {e}")
         return _err(e)
@@ -436,7 +453,7 @@ def main():
     logger.info(f"Starting OpenViking Control Plane MCP Server with {args.transport} transport")
 
     try:
-        mcp.run(transport=args.transport)
+        mcp.run(transport=args.transport, **_transport_options(args.transport))
     except Exception as e:
         logger.error(f"Error starting OpenViking Control Plane MCP Server: {str(e)}")
         raise

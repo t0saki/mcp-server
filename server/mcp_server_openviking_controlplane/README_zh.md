@@ -211,6 +211,10 @@ mcp-server-openviking-controlplane --transport streamable-http
 默认即无状态：每个请求自带完整上下文，不依赖上一次返回的 `Mcp-Session-Id`，
 因此进程可以在网关后面水平扩缩。
 
+Server 支持 MCP 协议修订版 **2026-07-28**——即"每请求信封"修订版，通过
+`server/discover` 探测而非 `initialize` 握手协商——同时仍可与要求旧握手修订版
+（最低 `2024-11-05`）的客户端协商。该能力需要 mcp SDK 2.x。
+
 | 环境变量 | 含义 | 默认值 |
 |---|---|---|
 | `MCP_SERVER_HOST` | HTTP 监听地址 | `0.0.0.0` |
