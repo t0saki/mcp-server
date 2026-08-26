@@ -12,12 +12,24 @@ logging.basicConfig(
     level=logging.INFO, format="%(asctime)s - %(name)s - %(levelname)s - %(message)s"
 )
 
-# Create MCP server
+# Create MCP server.
+#
+# host must be set explicitly: FastMCP defaults to 127.0.0.1 and then auto-enables
+# DNS-rebinding protection that only allows localhost Host headers, so a server
+# behind a gateway or load balancer would reject every request.
 mcp = FastMCP(
     "OpenViking Control Plane MCP Server",
-    port=int(os.getenv("PORT", "8000")),
+    host=os.getenv("MCP_SERVER_HOST", "0.0.0.0"),
+    port=int(os.getenv("MCP_SERVER_PORT") or os.getenv("PORT", "8000")),
     streamable_http_path=os.getenv("STREAMABLE_HTTP_PATH", "/mcp"),
+    # STATLESS_HTTP is the (misspelled) name the other servers in this repo already
+    # use and document; STATELESS_HTTP is accepted as a correct-spelling alias so a
+    # right-spelled config is not silently ignored. Stateless is the default: it is
+    # what a horizontally scaled gateway needs, and it is a no-op for stdio and sse.
+    stateless_http=os.getenv("STATLESS_HTTP", os.getenv("STATELESS_HTTP", "true")).lower()
+    == "true",
 )
+
 
 
 def _err(e: Exception) -> Dict[str, Any]:
@@ -369,9 +381,9 @@ def main():
     parser.add_argument(
         "--transport",
         "-t",
-        choices=["sse", "stdio"],
+        choices=["sse", "stdio", "streamable-http"],
         default="stdio",
-        help="Transport protocol to use (sse or stdio)",
+        help="Transport protocol to use (sse, stdio or streamable-http)",
     )
     args = parser.parse_args()
     logger.info(f"Starting OpenViking Control Plane MCP Server with {args.transport} transport")
