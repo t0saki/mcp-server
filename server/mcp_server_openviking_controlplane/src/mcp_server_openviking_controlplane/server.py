@@ -5,7 +5,11 @@ from typing import Any, Dict, Optional
 
 from mcp.server.fastmcp import FastMCP
 
-from mcp_server_openviking_controlplane.client import ControlPlaneError, get_client
+from mcp_server_openviking_controlplane.client import (
+    ControlPlaneClient,
+    ControlPlaneError,
+    build_client,
+)
 
 logger = logging.getLogger(__name__)
 logging.basicConfig(
@@ -30,6 +34,49 @@ mcp = FastMCP(
     == "true",
 )
 
+
+# Header a gateway can use to forward the caller's Ark AgentPlan ApiKey when it needs
+# Authorization for its own auth. Checked before Authorization.
+_API_KEY_HEADER = "x-agentplan-api-key"
+
+
+def _request_api_key() -> Optional[str]:
+    """The Ark AgentPlan ApiKey carried by the request currently being served, if any.
+
+    Returns None under stdio (there is no HTTP request) and None when the request
+    carries no usable credential, in which case the client falls back to the
+    AGENTPLAN_API_KEY environment variable.
+    """
+    try:
+        raw_request = mcp.get_context().request_context.request
+    except (ValueError, LookupError, AttributeError):
+        return None
+    if raw_request is None:
+        return None
+
+    headers = raw_request.headers
+    key = (headers.get(_API_KEY_HEADER) or "").strip()
+    if key:
+        return key
+
+    # Only the Bearer scheme is accepted: a gateway that puts its OWN credential in
+    # Authorization must not have it used as an Ark key -- the configured key is not
+    # merely replayed as a header, it is stored as the model credential of the
+    # collections this server creates.
+    scheme, _, rest = (headers.get("authorization") or "").strip().partition(" ")
+    if scheme.lower() == "bearer" and rest.strip():
+        return rest.strip()
+    return None
+
+
+def get_client() -> ControlPlaneClient:
+    """Build the control-plane client for the request currently being served.
+
+    Deliberately not cached: under stateless HTTP a module-level singleton would
+    transact every request with whatever credential the process started with.
+    Construction is cheap -- the client holds no requests.Session and no sockets.
+    """
+    return build_client(api_key=_request_api_key())
 
 
 def _err(e: Exception) -> Dict[str, Any]:

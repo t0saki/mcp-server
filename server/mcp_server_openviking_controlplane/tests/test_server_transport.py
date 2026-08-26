@@ -1,10 +1,12 @@
-"""Transport wiring: stateless streamable HTTP."""
+"""Transport wiring: stateless streamable HTTP and per-request credentials."""
 
 import importlib
 import os
 import sys
 import unittest
-from unittest.mock import patch
+from unittest.mock import Mock, patch
+
+from starlette.datastructures import Headers
 
 from mcp_server_openviking_controlplane import server
 
@@ -84,6 +86,61 @@ class StatelessEnvOverrideTest(unittest.TestCase):
         # `int(os.getenv("MCP_SERVER_PORT", ...))` would raise on an exported-but-empty
         # variable and kill the process at import time.
         self.assertEqual(_reload_server(MCP_SERVER_PORT="").mcp.settings.port, 8000)
+
+
+class RequestCredentialTest(unittest.TestCase):
+    """The credential is resolved per request, not once per process."""
+
+    def _with_headers(self, headers):
+        context = Mock()
+        context.request_context.request.headers = Headers(headers)
+        return patch.object(server.mcp, "get_context", return_value=context)
+
+    def test_dedicated_header_is_used_verbatim(self):
+        with self._with_headers({"X-AgentPlan-Api-Key": "ark-caller"}):
+            self.assertEqual(server._request_api_key(), "ark-caller")
+
+    def test_bearer_scheme_is_stripped(self):
+        with self._with_headers({"Authorization": "Bearer ark-caller"}):
+            self.assertEqual(server._request_api_key(), "ark-caller")
+
+    def test_dedicated_header_beats_authorization(self):
+        with self._with_headers(
+            {"X-AgentPlan-Api-Key": "ark-dedicated", "Authorization": "Bearer ark-auth"}
+        ):
+            self.assertEqual(server._request_api_key(), "ark-dedicated")
+
+    def test_non_bearer_authorization_is_ignored(self):
+        # A gateway terminating its own auth may put an unrelated credential here.
+        # Using it as an Ark key would stamp it into the caller's collection.
+        for value in ("Basic dXNlcjpwYXNz", "opaque-gateway-token", "Bearer "):
+            with self.subTest(value=value):
+                with self._with_headers({"Authorization": value}):
+                    self.assertIsNone(server._request_api_key())
+
+    def test_no_http_request_means_no_request_key(self):
+        # stdio: get_context() raises outside a request, and .request is None inside one.
+        with patch.object(server.mcp, "get_context", side_effect=ValueError):
+            self.assertIsNone(server._request_api_key())
+
+        context = Mock()
+        context.request_context.request = None
+        with patch.object(server.mcp, "get_context", return_value=context):
+            self.assertIsNone(server._request_api_key())
+
+    def test_consecutive_requests_do_not_share_a_credential(self):
+        with patch.dict(os.environ, {"AGENTPLAN_API_KEY": "ark-env"}, clear=False):
+            with self._with_headers({"X-AgentPlan-Api-Key": "ark-first"}):
+                first = server.get_client()
+            with self._with_headers({"X-AgentPlan-Api-Key": "ark-second"}):
+                second = server.get_client()
+            with patch.object(server.mcp, "get_context", side_effect=ValueError):
+                fallback = server.get_client()
+
+        self.assertEqual(first.config.api_key, "ark-first")
+        self.assertEqual(second.config.api_key, "ark-second")
+        self.assertEqual(fallback.config.api_key, "ark-env")
+
 
 if __name__ == "__main__":
     unittest.main()

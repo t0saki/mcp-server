@@ -128,14 +128,3 @@ def build_config(
         project=project or os.environ.get("OPENVIKING_PROJECT", DEFAULT_PROJECT),
         extra_headers=headers,
     )
-
-
-_config: Optional[ControlPlaneConfig] = None
-
-
-def get_config() -> ControlPlaneConfig:
-    """Lazy, cached config built purely from the environment (used by the MCP server)."""
-    global _config
-    if _config is None:
-        _config = build_config()
-    return _config

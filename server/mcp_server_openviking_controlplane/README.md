@@ -238,8 +238,20 @@ behind a gateway.
 > only allows localhost `Host` headers — a gateway-forwarded request would then be
 > rejected. Keep the `0.0.0.0` default when running behind one.
 
-> Under HTTP transports every request is served with the process's own
-> `AGENTPLAN_API_KEY`, so one deployment serves one AgentPlan account.
+#### Credentials over HTTP
+
+Under HTTP transports the AgentPlan ApiKey is resolved **per request**, so one
+process can serve several callers:
+
+| Source | Precedence |
+|---|---|
+| `X-AgentPlan-Api-Key` header | 1 (highest) |
+| `Authorization: Bearer <key>` header | 2 |
+| `AGENTPLAN_API_KEY` env var | 3 (fallback) |
+
+Only the `Bearer` scheme is read from `Authorization`; any other scheme is ignored
+and the env var is used instead, so a gateway that terminates its own auth there
+does not leak its credential into a caller's collection.
 
 Run with SSE instead via `mcp-server-openviking-controlplane --transport sse`.
 

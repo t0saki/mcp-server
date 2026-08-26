@@ -221,8 +221,18 @@ mcp-server-openviking-controlplane --transport streamable-http
 > 监听 `127.0.0.1` 会让 MCP SDK 自动开启 DNS-rebinding 保护，只放行 localhost 的
 > `Host` 头——网关转发过来的请求会被拒。挂在网关后面时请保持 `0.0.0.0` 默认值。
 
-> HTTP 传输下所有请求都用进程自身的 `AGENTPLAN_API_KEY`，
-> 因此一个部署对应一个 AgentPlan 账号。
+#### HTTP 下的凭证来源
+
+HTTP 传输下 AgentPlan ApiKey **按请求解析**，因此单个进程可以服务多个调用方：
+
+| 来源 | 优先级 |
+|---|---|
+| `X-AgentPlan-Api-Key` 请求头 | 1（最高） |
+| `Authorization: Bearer <key>` 请求头 | 2 |
+| `AGENTPLAN_API_KEY` 环境变量 | 3（兜底） |
+
+`Authorization` 只读取 `Bearer` scheme，其他 scheme 一律忽略并回落到环境变量——
+这样网关若在该头上终结自己的鉴权，其凭证不会被写进调用方的库。
 
 需要 SSE 时：`mcp-server-openviking-controlplane --transport sse`。
 

@@ -12,7 +12,7 @@ from mcp_server_openviking_controlplane.config import (
     PAY_TYPE_MAP,
     VERSION_CHOICES,
     ControlPlaneConfig,
-    get_config,
+    build_config,
 )
 
 logger = logging.getLogger(__name__)
@@ -588,12 +588,23 @@ class ControlPlaneClient:
         )
 
 
-_client: Optional[ControlPlaneClient] = None
+def build_client(
+    api_key: Optional[str] = None,
+    endpoint: Optional[str] = None,
+    project: Optional[str] = None,
+    extra_headers: Optional[Dict[str, str]] = None,
+) -> ControlPlaneClient:
+    """Build a control-plane client from explicit args first, then the environment.
 
-
-def get_client() -> ControlPlaneClient:
-    """Lazy singleton used by the MCP server (config resolved from the environment)."""
-    global _client
-    if _client is None:
-        _client = ControlPlaneClient(get_config())
-    return _client
+    Deliberately not cached. The MCP server resolves the caller's credential per
+    request, and a client caches nothing expensive: it holds no requests.Session
+    and opens no sockets until a method is called.
+    """
+    return ControlPlaneClient(
+        build_config(
+            endpoint=endpoint,
+            project=project,
+            api_key=api_key,
+            extra_headers=extra_headers,
+        )
+    )
