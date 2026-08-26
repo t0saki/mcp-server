@@ -139,9 +139,32 @@ uv run ov-cp --output pretty list     # 强制终端视图
 `-e` / `VIKING_ENDPOINT` 覆盖：`uv run ov-cp -e http://localhost:18080 list`。
 `ov-cp --help` 不需要任何配置即可运行。
 
-## MCP 用法（stdio / uvx）
+## MCP 用法（stdio / uvx / streamable HTTP）
 
-Server 默认 **stdio** 传输，可被任意 MCP 客户端作为子进程拉起。`.mcp.json` 配置：
+Server 默认 **stdio** 传输，可被任意 MCP 客户端作为子进程拉起；也可以以无状态
+streamable HTTP 的方式挂在网关后面。`.mcp.json` 配置：
+
+### 从 PyPI 安装
+
+```json
+{
+  "mcpServers": {
+    "openviking-controlplane": {
+      "command": "uvx",
+      "args": [
+        "--from",
+        "mcp-server-openviking-controlplane>=0.2.0",
+        "mcp-server-openviking-controlplane"
+      ],
+      "env": {
+        "AGENTPLAN_API_KEY": "ark-xxxxxxxx"
+      }
+    }
+  }
+}
+```
+
+### 从源码安装
 
 ```json
 {
@@ -177,6 +200,29 @@ Server 默认 **stdio** 传输，可被任意 MCP 客户端作为子进程拉起
   }
 }
 ```
+
+### Streamable HTTP（无状态）
+
+```bash
+mcp-server-openviking-controlplane --transport streamable-http
+# -> http://0.0.0.0:8000/mcp
+```
+
+默认即无状态：每个请求自带完整上下文，不依赖上一次返回的 `Mcp-Session-Id`，
+因此进程可以在网关后面水平扩缩。
+
+| 环境变量 | 含义 | 默认值 |
+|---|---|---|
+| `MCP_SERVER_HOST` | HTTP 监听地址 | `0.0.0.0` |
+| `MCP_SERVER_PORT` | HTTP 端口（`PORT` 仍然有效） | `8000` |
+| `STREAMABLE_HTTP_PATH` | streamable HTTP 挂载路径 | `/mcp` |
+| `STATLESS_HTTP` | 是否启用无状态 HTTP（`STATELESS_HTTP` 亦可） | `true` |
+
+> 监听 `127.0.0.1` 会让 MCP SDK 自动开启 DNS-rebinding 保护，只放行 localhost 的
+> `Host` 头——网关转发过来的请求会被拒。挂在网关后面时请保持 `0.0.0.0` 默认值。
+
+> HTTP 传输下所有请求都用进程自身的 `AGENTPLAN_API_KEY`，
+> 因此一个部署对应一个 AgentPlan 账号。
 
 需要 SSE 时：`mcp-server-openviking-controlplane --transport sse`。
 

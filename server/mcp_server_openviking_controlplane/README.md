@@ -153,10 +153,33 @@ for testing (e.g. against a port-forward) with `-e` / `VIKING_ENDPOINT` —
 `uv run ov-cp -e http://localhost:18080 list`.
 `ov-cp --help` works without any config.
 
-## MCP usage (stdio / uvx)
+## MCP usage (stdio / uvx / streamable HTTP)
 
 The server defaults to **stdio** transport, so it can be launched as a subprocess by
-any MCP client. Add to `.mcp.json`:
+any MCP client, and can also be served over stateless streamable HTTP behind a
+gateway. Add to `.mcp.json`:
+
+### Install from PyPI
+
+```json
+{
+  "mcpServers": {
+    "openviking-controlplane": {
+      "command": "uvx",
+      "args": [
+        "--from",
+        "mcp-server-openviking-controlplane>=0.2.0",
+        "mcp-server-openviking-controlplane"
+      ],
+      "env": {
+        "AGENTPLAN_API_KEY": "ark-xxxxxxxx"
+      }
+    }
+  }
+}
+```
+
+### Install from source
 
 ```json
 {
@@ -192,6 +215,31 @@ For local development point it at your checkout instead:
   }
 }
 ```
+
+### Streamable HTTP (stateless)
+
+```bash
+mcp-server-openviking-controlplane --transport streamable-http
+# -> http://0.0.0.0:8000/mcp
+```
+
+Stateless is the default: every request carries its own context, so no request
+depends on a prior `Mcp-Session-Id` and the process can be scaled horizontally
+behind a gateway.
+
+| Env var | Meaning | Default |
+|---|---|---|
+| `MCP_SERVER_HOST` | HTTP bind address | `0.0.0.0` |
+| `MCP_SERVER_PORT` | HTTP port (`PORT` is still honoured) | `8000` |
+| `STREAMABLE_HTTP_PATH` | Mount path for streamable HTTP | `/mcp` |
+| `STATLESS_HTTP` | Enable stateless HTTP (`STATELESS_HTTP` also works) | `true` |
+
+> Binding `127.0.0.1` makes the MCP SDK enable DNS-rebinding protection, which
+> only allows localhost `Host` headers — a gateway-forwarded request would then be
+> rejected. Keep the `0.0.0.0` default when running behind one.
+
+> Under HTTP transports every request is served with the process's own
+> `AGENTPLAN_API_KEY`, so one deployment serves one AgentPlan account.
 
 Run with SSE instead via `mcp-server-openviking-controlplane --transport sse`.
 
