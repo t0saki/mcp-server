@@ -4,7 +4,7 @@ CloudMonitor MCP Server Provide capabilities such as query metric data。
 
 |             |                                                                               |
 |-------------|-------------------------------------------------------------------------------|
-| Version     | v0.1.0                                                                        |
+| Version     | v0.1.3                                                                        |
 | Description | CloudMonitor MCP Server Help you query and manage monitoring data more easily |
 | Category    | CloudNative-Observability                                                     |
 | Label       | Observability、Query Metric                                                    |
@@ -631,6 +631,24 @@ Please obtain the environment variables in advance VOLCENGINE_ACCESS_KEY 和 VOL
 Start using the stdio mode in the local mode,
 
 stdio mode:
+```json
+{
+  "mcpServers": {
+    "mcp-server-cloudmonitor-stdio": {
+      "command": "uvx",
+      "args": [
+        "--from",
+        "mcp-server-cloudmonitor",
+        "mcp-server-cloudmonitor-stdio"
+      ],
+      "env": {
+        "VOLCENGINE_ACCESS_KEY": "your volcengine access key",
+        "VOLCENGINE_SECRET_KEY": "your volcengine secret key"
+      }
+    }
+  }
+}
+```
 
 ```json
 {
@@ -639,7 +657,7 @@ stdio mode:
       "command": "uvx",
       "args": [
         "--from",
-        "git+https://github.com/volcengine/mcp-server#subdirectory=server/mcp_server_cloudmonitor",
+        "git+https://github.com/volcengine/mcp-server#subdirectory=server/mcp-server-cloudmonitor",
         "mcp-server-cloudmonitor-stdio"
       ],
       "env": {
@@ -654,6 +672,44 @@ stdio mode:
 The remote mode is started using the streamable-http mode,
 
 streamable-http mode:
+```json
+{
+  "mcpServers": {
+    "mcp-server-cloudmonitor-streamable": {
+      "command": "uvx",
+      "args": [
+        "--from",
+        "mcp-server-cloudmonitor",
+        "mcp-server-cloudmonitor-streamable"
+      ],
+      "env": {
+        "VOLCENGINE_ACCESS_KEY": "your volcengine access key",
+        "VOLCENGINE_SECRET_KEY": "your volcengine secret key"
+      }
+    }
+  }
+}
+```
+
+```json
+{
+  "mcpServers": {
+    "mcp-server-cloudmonitor-streamable": {
+      "command": "uvx",
+      "args": [
+        "--from",
+        "git+https://github.com/volcengine/mcp-server#subdirectory=server/mcp_server_cloudmonitor",
+        "mcp-server-cloudmonitor-streamable"
+      ],
+      "env": {
+        "VOLCENGINE_ACCESS_KEY": "your volcengine access key",
+        "VOLCENGINE_SECRET_KEY": "your volcengine secret key"
+      }
+    }
+  }
+}
+```
+
 ```json
 {
   "mcpServers": {
