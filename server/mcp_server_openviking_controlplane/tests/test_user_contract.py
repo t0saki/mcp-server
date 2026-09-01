@@ -121,7 +121,9 @@ class UserCliContractTest(unittest.TestCase):
             )
 
         self.assertEqual(result.exit_code, 0)
-        get_user_access.assert_called_once_with("ov-example", user_id="alice")
+        get_user_access.assert_called_once_with(
+            "ov-example", user_id="alice", account_id=None
+        )
 
     def test_user_list_accepts_filters_and_pagination(self):
         with patch(
@@ -155,6 +157,7 @@ class UserCliContractTest(unittest.TestCase):
             role="user",
             page=2,
             limit=10,
+            account_id=None,
         )
 
     def test_user_update_requires_regenerate_key(self):
@@ -192,6 +195,7 @@ class UserMcpContractTest(unittest.TestCase):
         get_client.return_value.get_user_access.assert_called_once_with(
             "ov-example",
             user_id="alice",
+            account_id=None,
         )
 
     def test_list_users_tool_forwards_filters_and_pagination(self):
@@ -215,6 +219,7 @@ class UserMcpContractTest(unittest.TestCase):
             role="user",
             page=2,
             limit=10,
+            account_id=None,
         )
 
     def test_register_and_update_tools_match_backend_fields(self):
@@ -232,11 +237,13 @@ class UserMcpContractTest(unittest.TestCase):
         get_client.return_value.register_user.assert_called_once_with(
             "ov-example",
             "alice",
+            account_id=None,
         )
         get_client.return_value.update_user.assert_called_once_with(
             "ov-example",
             "alice",
             regenerate_key=True,
+            account_id=None,
         )
 
 

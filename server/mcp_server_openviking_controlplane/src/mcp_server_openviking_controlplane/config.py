@@ -1,5 +1,6 @@
 import logging
 import os
+import re
 from dataclasses import dataclass, field
 from typing import Dict, Optional
 
@@ -31,6 +32,17 @@ DEFAULT_EMBEDDING_MODEL = "doubao-embedding-vision"
 # Library tier (top-level ``Version`` field). "developer" is the free/default
 # tier; "enterprise" is the higher-capacity, enterprise-billed tier.
 VERSION_CHOICES = ("developer", "enterprise")
+
+# Account (data-space) identifiers are shared by account lifecycle operations
+# and account-aware user/usage operations.
+DEFAULT_ACCOUNT_ID = "default"
+ACCOUNT_ID_MAX_LENGTH = 64
+ACCOUNT_ID_PATTERN = re.compile(r"^[A-Za-z0-9_.@-]+$")
+ACCOUNT_ID_RULES = (
+    "must be 1-64 characters using only ASCII letters, digits, '_', '.', '@', or '-'; "
+    "must not start with '_'; must not be '.' or '..'; and may contain at most "
+    "one '@'"
+)
 
 # Billing (``PaymentConfig``): how a library is paid for — orthogonal to the
 # ``Version`` tier, which only sets the hourly rate. One flat user-facing enum

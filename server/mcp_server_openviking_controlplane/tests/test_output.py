@@ -100,6 +100,45 @@ class OutputRenderingTest(unittest.TestCase):
         self.assertIn("demo", output)
         self.assertIn("READY", output)
 
+    def test_account_table_renders_count_timestamp_and_boolean(self):
+        data = {
+            "AccountList": [
+                {
+                    "AccountID": "default",
+                    "UserCount": 3,
+                    "CreateTime": "2026-08-27T12:34:56Z",
+                    "IsDefault": True,
+                },
+                {
+                    "AccountID": "team-a",
+                    "UserCount": 1,
+                    "CreateTime": "1732100000",
+                    "IsDefault": False,
+                },
+            ],
+            "Total": 2,
+        }
+
+        output = self.render(data, mode=OutputMode.PRETTY, view="accounts")
+
+        self.assertIn("Data Spaces (2)", output)
+        self.assertIn("default", output)
+        self.assertIn("team-a", output)
+        self.assertIn("yes", output)
+        self.assertIn("no", output)
+        self.assertIn("2026-08-27T12:34:56Z", output)
+        self.assertIn("1732100000", output)
+
+    def test_scoped_usage_does_not_render_library_billing_placeholder(self):
+        output = self.render(
+            {"CurContextFileNum": 12, "ResourcesFileNum": 4},
+            mode=OutputMode.PRETTY,
+            view="usage",
+        )
+
+        self.assertIn("reported for the whole library, not per data space", output)
+        self.assertNotIn("¥—", output)
+
     def test_api_key_view_warns_that_the_value_is_sensitive(self):
         output = self.render(
             {"UserID": "default", "Role": "admin", "ApiKey": "secret-key"},

@@ -5,8 +5,15 @@ from typing import Any, Callable, Dict, List, Optional
 
 import typer
 
-from mcp_server_openviking_controlplane.client import ControlPlaneClient, ControlPlaneError
+from mcp_server_openviking_controlplane.client import (
+    ControlPlaneClient,
+    ControlPlaneError,
+    _normalize_optional_account_id,
+    validate_account_id,
+)
 from mcp_server_openviking_controlplane.config import (
+    ACCOUNT_ID_RULES,
+    DEFAULT_ACCOUNT_ID,
     build_config,
     parse_extra_headers,
 )
@@ -142,11 +149,33 @@ def get_cmd(ctx: typer.Context, resource_id: str = typer.Argument(..., help="Tar
 
 
 @app.command("usage")
-def usage_cmd(ctx: typer.Context, resource_id: str = typer.Argument(..., help="Target library ResourceID.")):
-    """Get overall usage / file counts of a collection."""
+def usage_cmd(
+    ctx: typer.Context,
+    resource_id: str = typer.Argument(..., help="Target library ResourceID."),
+    account_id: Optional[str] = typer.Option(
+        None,
+        "--account-id",
+        help="Data space (account) scope; omit for whole-library usage, or the "
+        "default data space when --user-id is set.",
+    ),
+    user_id: Optional[str] = typer.Option(
+        None,
+        "--user-id",
+        help="User whose usage to query; may be used with or without --account-id.",
+    ),
+):
+    """Get library-wide or account/user-scoped usage and file counts."""
     client = _client(ctx)
     try:
-        _print(ctx, client.get_usage(resource_id), "usage")
+        _print(
+            ctx,
+            client.get_usage(
+                resource_id,
+                account_id=account_id,
+                user_id=user_id,
+            ),
+            "usage",
+        )
     except Exception as e:
         raise _fail(e)
 
@@ -158,13 +187,26 @@ def api_key_cmd(
     user_id: Optional[str] = typer.Option(
         None,
         "--user-id",
-        help="Target UserID; omit for the default user.",
+        help="Target UserID; omit for the selected data space's default user.",
+    ),
+    account_id: Optional[str] = typer.Option(
+        None,
+        "--account-id",
+        help="Data space (account) to operate in; omit for the default data space.",
     ),
 ):
     """Get a user's plaintext data-plane API Key."""
     client = _client(ctx)
     try:
-        _print(ctx, client.get_user_access(resource_id, user_id=user_id), "api-key")
+        _print(
+            ctx,
+            client.get_user_access(
+                resource_id,
+                user_id=user_id,
+                account_id=account_id,
+            ),
+            "api-key",
+        )
     except Exception as e:
         raise _fail(e)
 
@@ -299,6 +341,11 @@ app.add_typer(user_app, name="user")
 def user_list_cmd(
     ctx: typer.Context,
     resource_id: str = typer.Argument(..., help="Target library ResourceID."),
+    account_id: Optional[str] = typer.Option(
+        None,
+        "--account-id",
+        help="Data space (account) to operate in; omit for the default data space.",
+    ),
     user_id: Optional[str] = typer.Option(
         None,
         "--user-id",
@@ -323,6 +370,7 @@ def user_list_cmd(
                 role=role,
                 page=page,
                 limit=limit,
+                account_id=account_id,
             ),
             "users",
         )
@@ -334,12 +382,21 @@ def user_list_cmd(
 def user_register_cmd(
     ctx: typer.Context,
     resource_id: str = typer.Argument(..., help="Target library ResourceID."),
-    user_id: str = typer.Argument(..., help="UserID for the new user (unique in library)."),
+    user_id: str = typer.Argument(..., help="UserID for the new user (unique in data space)."),
+    account_id: Optional[str] = typer.Option(
+        None,
+        "--account-id",
+        help="Data space (account) to operate in; omit for the default data space.",
+    ),
 ):
     """Register a new regular user under a collection."""
     client = _client(ctx)
     try:
-        _print(ctx, client.register_user(resource_id, user_id), "success")
+        _print(
+            ctx,
+            client.register_user(resource_id, user_id, account_id=account_id),
+            "success",
+        )
     except Exception as e:
         raise _fail(e)
 
@@ -349,6 +406,11 @@ def user_update_cmd(
     ctx: typer.Context,
     resource_id: str = typer.Argument(..., help="Target library ResourceID."),
     user_id: str = typer.Argument(..., help="Target UserID."),
+    account_id: Optional[str] = typer.Option(
+        None,
+        "--account-id",
+        help="Data space (account) to operate in; omit for the default data space.",
+    ),
     regenerate_key: bool = typer.Option(
         False,
         "--regenerate-key",
@@ -370,6 +432,7 @@ def user_update_cmd(
                 resource_id,
                 user_id,
                 regenerate_key=regenerate_key,
+                account_id=account_id,
             ),
             "success",
         )
@@ -382,17 +445,120 @@ def user_delete_cmd(
     ctx: typer.Context,
     resource_id: str = typer.Argument(..., help="Target library ResourceID."),
     user_id: str = typer.Argument(..., help="Target UserID."),
+    account_id: Optional[str] = typer.Option(
+        None,
+        "--account-id",
+        help="Data space (account) to operate in; omit for the default data space.",
+    ),
     yes: bool = typer.Option(False, "--yes", "-y", help="Skip the confirmation prompt."),
 ):
     """Delete a user from a collection (revokes its credential; irreversible)."""
     client = _client(ctx)
+    try:
+        normalized_account_id = _normalize_optional_account_id(account_id)
+    except Exception as e:
+        raise _fail(e)
     if not yes:
         typer.confirm(
-            f"Delete user {user_id} from collection {resource_id} (revokes its credential)?",
+            f"Delete user {user_id} from data space {normalized_account_id or 'default'} "
+            f"in collection {resource_id} (revokes its credential)?",
             abort=True,
         )
     try:
-        _print(ctx, client.delete_user(resource_id, user_id), "success")
+        _print(
+            ctx,
+            client.delete_user(
+                resource_id,
+                user_id,
+                account_id=normalized_account_id,
+            ),
+            "success",
+        )
+    except Exception as e:
+        raise _fail(e)
+
+
+account_app = typer.Typer(
+    help=(
+        "Manage data spaces (accounts) within an enterprise-tier collection. "
+        "Omitting --account-id targets the default data space for user/API-key "
+        "commands; unscoped usage remains library-wide."
+    ),
+    no_args_is_help=True,
+)
+app.add_typer(account_app, name="account")
+
+
+@account_app.command("list")
+def account_list_cmd(
+    ctx: typer.Context,
+    resource_id: str = typer.Argument(..., help="Target library ResourceID."),
+    keyword: Optional[str] = typer.Option(
+        None,
+        "--keyword",
+        help="Filter data spaces by AccountID substring.",
+    ),
+    page: int = typer.Option(1, min=1, help="Page number (1-based)."),
+    limit: int = typer.Option(20, min=1, max=200, help="Data spaces per page."),
+):
+    """List data spaces under an enterprise-tier collection."""
+    client = _client(ctx)
+    try:
+        _print(
+            ctx,
+            client.list_accounts(
+                resource_id,
+                keyword=keyword,
+                page=page,
+                limit=limit,
+            ),
+            "accounts",
+        )
+    except Exception as e:
+        raise _fail(e)
+
+
+@account_app.command("create")
+def account_create_cmd(
+    ctx: typer.Context,
+    resource_id: str = typer.Argument(..., help="Target library ResourceID."),
+    account_id: str = typer.Argument(
+        ...,
+        help=f"AccountID for the new data space. {ACCOUNT_ID_RULES}",
+    ),
+):
+    """Create a data space; the backend also creates its default admin."""
+    client = _client(ctx)
+    try:
+        _print(ctx, client.create_account(resource_id, account_id), "success")
+    except Exception as e:
+        raise _fail(e)
+
+
+@account_app.command("delete")
+def account_delete_cmd(
+    ctx: typer.Context,
+    resource_id: str = typer.Argument(..., help="Target library ResourceID."),
+    account_id: str = typer.Argument(..., help="AccountID of the data space to delete."),
+    yes: bool = typer.Option(False, "--yes", "-y", help="Skip the confirmation prompt."),
+):
+    """Delete a data space and everything isolated inside it (irreversible)."""
+    client = _client(ctx)
+    try:
+        validated_account_id = validate_account_id(account_id)
+        if validated_account_id == DEFAULT_ACCOUNT_ID:
+            raise ValueError("the default account cannot be deleted")
+    except Exception as e:
+        raise _fail(e)
+    if not yes:
+        typer.confirm(
+            f"Irreversibly delete data space {validated_account_id} from collection "
+            f"{resource_id}? This destroys ALL of its users, credentials, "
+            "memories, resources, sessions and skills.",
+            abort=True,
+        )
+    try:
+        _print(ctx, client.delete_account(resource_id, validated_account_id), "success")
     except Exception as e:
         raise _fail(e)
 

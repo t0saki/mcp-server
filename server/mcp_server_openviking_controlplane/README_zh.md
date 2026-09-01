@@ -4,7 +4,7 @@ OpenViking 控制面（topapi）的 MCP Server **与** CLI —— 用于管理 O
 （`Collection`）。两个前端共用同一套核心（`client.py`），新增一个能力即可同时被 MCP
 和 CLI 使用。
 
-覆盖 11 个库生命周期、计费与用户管理 Action：
+覆盖 14 个库生命周期、计费、用户管理与数据空间 Action：
 
 | Action | MCP tool | CLI 命令 |
 |---|---|---|
@@ -14,16 +14,27 @@ OpenViking 控制面（topapi）的 MCP Server **与** CLI —— 用于管理 O
 | `UpdateOpenVikingCollection` | `update_collection` | `ov-cp update <rid>` |
 | `DeleteOpenVikingCollection` | `delete_collection` ⚠️ | `ov-cp delete <rid>` |
 | `GetOpenVikingUsage` | `get_usage` | `ov-cp usage <rid>` |
-| `AccessOpenVikingApiKey`（路径 `/GetOpenVikingCollectionUserAccess`） | `get_collection_api_key` | `ov-cp api-key <rid>` |
-| `ListOpenVikingUser`（路径 `/ListOpenVikingCollectionUser`） | `list_collection_users` | `ov-cp user list <rid>` |
-| `RegisterOpenVikingUser` | `register_collection_user` | `ov-cp user register <rid>` |
+| `GetOpenVikingCollectionUserAccess` | `get_collection_api_key` | `ov-cp api-key <rid>` |
+| `ListOpenVikingCollectionUser` | `list_collection_users` | `ov-cp user list <rid>` |
+| `RegisterOpenVikingUser` | `register_collection_user` | `ov-cp user register <rid> <uid>` |
 | `UpdateOpenVikingUser` | `update_collection_user` | `ov-cp user update <rid> <uid>` |
 | `DeleteOpenVikingUser` | `delete_collection_user` ⚠️ | `ov-cp user delete <rid> <uid>` |
+| `ListOpenVikingAccounts` | `list_collection_accounts` | `ov-cp account list <rid>` |
+| `CreateOpenVikingAccount` | `create_collection_account` | `ov-cp account create <rid> <account-id>` |
+| `DeleteOpenVikingAccount` | `delete_collection_account` ⚠️ | `ov-cp account delete <rid> <account-id>` |
 
 `user *` 系列管理企业版库的多用户，要求 AgentPlan key **与目标库已关联**。`user list`
 返回的用户 `ApiKey` 是**掩码**，取指定用户的明文数据面 key 使用
 `api-key <rid> --user-id <uid>`。新注册用户的角色固定为 `user`；`user update`
 当前只支持重生 API Key。
+
+`account *` 系列管理企业版库的数据空间：它是用户、凭证、记忆、资源、会话与技能的
+一级隔离边界。已发布后端在省略 `--account-id` 时使用 AccountID `default`，因此存量用法
+保持不变。新建数据空间时会自动添加其 `default` 管理员用户。AccountID 长度为 1-64 个
+字符，只能包含 ASCII 字母、数字、`_`、`.`、`@`、`-`；不能以 `_` 开头，不能等于 `.`
+或 `..`，且至多包含一个 `@`。单库配额由后端配置（当前默认 100）。删除数据空间会不可逆
+地级联删除其中所有内容；`default` 不可删除。将 `account list` 返回的 `CreateTime` 视为
+后端不透明时间戳字符串。
 
 ## 端点
 
@@ -49,7 +60,7 @@ Action 在 **path** 里（不走 `?Action=&Version=` query）。请求体是该 
 （`common/auth.py` → `BearerTokenAuth`），后续要换 AK/SK 签名时只需替换这一处。
 
 > ⚠️ `create` 等写接口要求账号已**开通 AgentPlan 抵扣**，否则返回 `ProductUnordered`；
-> 只读接口（list/get/usage/delete）不受此限。
+> 操作已有库时还可能要求 AgentPlan key 已与目标库关联。
 
 ### 配置
 
@@ -76,8 +87,13 @@ export AGENTPLAN_API_KEY=ark-xxxxxxxx
 uv run ov-cp list
 uv run ov-cp get   <ResourceID>
 uv run ov-cp usage <ResourceID>
+uv run ov-cp usage <ResourceID> --account-id team-alpha
+uv run ov-cp usage <ResourceID> --user-id xiaohong  # default 数据空间内的用户
+uv run ov-cp usage <ResourceID> --account-id team-alpha --user-id xiaohong
 uv run ov-cp api-key <ResourceID>
 uv run ov-cp api-key <ResourceID> --user-id xiaohong
+uv run ov-cp api-key <ResourceID> --account-id team-alpha
+uv run ov-cp api-key <ResourceID> --account-id team-alpha --user-id xiaohong
 
 # 建库（消耗付费配额；固定使用 AgentPlan 模型路径和已配置的 AgentPlan key，
 #       不开放模型来源、模型参数、模型鉴权与 OpenViking 镜像版本）
@@ -110,17 +126,22 @@ uv run ov-cp update <ResourceID> --model-api-key ark-xxxxxxxx
 
 # 管理企业版库的用户（key 需与该库已关联）
 uv run ov-cp user list     <ResourceID>
-uv run ov-cp user list     <ResourceID> --role user --page 1 --limit 20
-uv run ov-cp user register <ResourceID> xiaohong
-uv run ov-cp user update   <ResourceID> xiaohong --regenerate-key
-uv run ov-cp user delete   <ResourceID> xiaohong --yes
+uv run ov-cp user list     <ResourceID> --account-id team-alpha --role user --page 1 --limit 20
+uv run ov-cp user register <ResourceID> xiaohong --account-id team-alpha
+uv run ov-cp user update   <ResourceID> xiaohong --account-id team-alpha --regenerate-key
+uv run ov-cp user delete   <ResourceID> xiaohong --account-id team-alpha --yes
+
+# 管理企业版库的数据空间（Account）
+uv run ov-cp account list   <ResourceID> --keyword team --page 1 --limit 20
+uv run ov-cp account create <ResourceID> team-alpha
+uv run ov-cp account delete <ResourceID> team-alpha  # 级联删除前会要求确认
 
 # 删库（不可逆）
 uv run ov-cp delete <ResourceID> --yes
 ```
 
 默认的 `--output auto` 在 stdout 连接终端时使用 Rich 结构化视图：
-库/用户列表显示为表格，`get`/`usage` 显示为分区详情卡片，写操作显示精简成功卡片，
+库/用户/数据空间列表显示为表格，`get`/`usage` 显示为分区详情卡片，写操作显示精简成功卡片，
 明文 API Key 则显示敏感信息警告。管道和重定向会自动保持标准 JSON：
 
 ```bash
@@ -131,9 +152,11 @@ uv run ov-cp --output json-compact list
 uv run ov-cp --output pretty list     # 强制终端视图
 ```
 
-`usage` 保留后端原有的 `EstimatedCosts` 字段，同时新增 `EstimatedBilling`，
+库级 `usage` 保留后端原有的 `EstimatedCosts` 字段，同时新增 `EstimatedBilling`，
 明确费用为每小时 CNY 估值。AgentPlan 支付的库还会返回对应的 AFP 抵扣量和
-支付场景；`volc_pay` 只返回 CNY。
+支付场景；`volc_pay` 只返回 CNY。按数据空间或用户查询时会去掉这两个库级估值。
+`--user-id` 可单独使用，此时查询 `default` 数据空间；传入 `--account-id` 时，usage
+内部使用 `OpenVikingAccountID` 字段发送该范围。
 
 命令行参数优先于环境变量。端点默认指向公网网关；仅在测试时（如指向 port-forward）才用
 `-e` / `VIKING_ENDPOINT` 覆盖：`uv run ov-cp -e http://localhost:18080 list`。
@@ -153,7 +176,7 @@ streamable HTTP 的方式挂在网关后面。`.mcp.json` 配置：
       "command": "uvx",
       "args": [
         "--from",
-        "mcp-server-openviking-controlplane>=0.2.0",
+        "mcp-server-openviking-controlplane>=0.3.0",
         "mcp-server-openviking-controlplane"
       ],
       "env": {
@@ -240,5 +263,6 @@ HTTP 传输下 AgentPlan ApiKey **按请求解析**，因此单个进程可以�
 
 需要 SSE 时：`mcp-server-openviking-controlplane --transport sse`。
 
-> ⚠️ `create_collection` / `delete_collection` 会创建/销毁**付费**资源，且已暴露为 MCP
-> tool；其描述会要求模型先与你确认。最终拦截依赖客户端的工具授权弹窗。
+> ⚠️ `create_collection` / `delete_collection` 会创建/销毁**付费**资源；
+> `delete_collection_account` 会不可逆地销毁数据空间及其全部内容。这些能力均已暴露为
+> MCP tool，其描述会要求模型先与你确认。最终拦截依赖客户端的工具授权弹窗。

@@ -143,7 +143,25 @@ class ToolContractTest(unittest.TestCase):
         import anyio
 
         tools = anyio.run(server.mcp.list_tools)
-        self.assertEqual(len(tools), 11)
+        self.assertEqual(
+            {tool.name for tool in tools},
+            {
+                "list_collections",
+                "get_collection",
+                "get_usage",
+                "get_collection_api_key",
+                "create_collection",
+                "update_collection",
+                "list_collection_users",
+                "register_collection_user",
+                "update_collection_user",
+                "delete_collection_user",
+                "list_collection_accounts",
+                "create_collection_account",
+                "delete_collection_account",
+                "delete_collection",
+            },
+        )
         for tool in tools:
             with self.subTest(tool=tool.name):
                 self.assertNotIn("ctx", tool.input_schema.get("properties") or {})

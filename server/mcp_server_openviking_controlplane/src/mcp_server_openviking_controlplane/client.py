@@ -7,6 +7,10 @@ import requests
 
 from mcp_server_openviking_controlplane.common.auth import AuthProvider, BearerTokenAuth
 from mcp_server_openviking_controlplane.config import (
+    ACCOUNT_ID_MAX_LENGTH,
+    ACCOUNT_ID_PATTERN,
+    ACCOUNT_ID_RULES,
+    DEFAULT_ACCOUNT_ID,
     DEFAULT_EMBEDDING_MODEL,
     DEFAULT_VLM_MODEL,
     PAY_TYPE_MAP,
@@ -124,6 +128,48 @@ def build_payment_config(
         "PayType": wire_type,
         "AgentPlanConfig": {"BusinessScenarios": scenario, "SeatId": seat_id or ""},
     }
+
+
+def validate_account_id(account_id: str, label: str = "account_id") -> str:
+    """Validate and return an OpenViking account (data-space) identifier."""
+    reason: Optional[str] = None
+    if not isinstance(account_id, str):
+        reason = "must be a string"
+    elif not 1 <= len(account_id) <= ACCOUNT_ID_MAX_LENGTH:
+        reason = f"must be between 1 and {ACCOUNT_ID_MAX_LENGTH} characters"
+    elif ACCOUNT_ID_PATTERN.fullmatch(account_id) is None:
+        reason = "contains unsupported characters"
+    elif account_id.startswith("_"):
+        reason = "must not start with '_'"
+    elif account_id in {".", ".."}:
+        reason = "must not be '.' or '..'"
+    elif account_id.count("@") > 1:
+        reason = "may contain at most one '@'"
+
+    if reason is not None:
+        raise ValueError(
+            f"invalid {label} {account_id!r}; {reason}. Rules: {ACCOUNT_ID_RULES}"
+        )
+    return account_id
+
+
+def _normalize_optional_account_id(account_id: Optional[str]) -> Optional[str]:
+    """Match the backend's optional AccountID normalization for user actions."""
+    if account_id is None:
+        return None
+    if not isinstance(account_id, str):
+        return validate_account_id(account_id)
+    normalized = account_id.strip()
+    if not normalized:
+        return None
+    return validate_account_id(normalized)
+
+
+def _validate_pagination(page: int, limit: int) -> None:
+    if page < 1:
+        raise ValueError("page must be >= 1")
+    if not 1 <= limit <= 200:
+        raise ValueError("limit must be between 1 and 200")
 
 
 class ControlPlaneError(RuntimeError):
@@ -485,10 +531,30 @@ class ControlPlaneClient:
     def delete_collection(self, resource_id: str) -> Dict[str, Any]:
         return self._request("DeleteOpenVikingCollection", {"ResourceID": resource_id})
 
-    def get_usage(self, resource_id: str) -> Dict[str, Any]:
-        result = self._request("GetOpenVikingUsage", {"ResourceID": resource_id})
+    def get_usage(
+        self,
+        resource_id: str,
+        account_id: Optional[str] = None,
+        user_id: Optional[str] = None,
+    ) -> Dict[str, Any]:
+        body: Dict[str, Any] = {"ResourceID": resource_id}
+        if account_id is not None:
+            # Usage uses the backend's historical field name; other account-aware
+            # actions serialize this identifier as AccountID.
+            body["OpenVikingAccountID"] = validate_account_id(account_id)
+        if user_id is not None:
+            # A UserID without an explicit account selects the default data space.
+            body["UserID"] = user_id
+        result = self._request("GetOpenVikingUsage", body)
         # AgentFileNum is not meaningful here; drop it from the returned usage.
         result.pop("AgentFileNum", None)
+        if account_id is not None or user_id is not None:
+            # Costs and collection metadata are library-wide. Attaching them to an
+            # account/user slice would be misleading, so scoped usage returns only
+            # scoped counters and avoids the extra collection request.
+            result.pop("EstimatedCosts", None)
+            result.pop("EstimatedBilling", None)
+            return result
         collection: Optional[Dict[str, Any]] = None
         try:
             collection = self.get_collection(resource_id)
@@ -506,6 +572,7 @@ class ControlPlaneClient:
         self,
         resource_id: str,
         user_id: Optional[str] = None,
+        account_id: Optional[str] = None,
     ) -> Dict[str, Any]:
         # On the data-plane cluster the api-key action is registered as
         # GetOpenVikingCollectionUserAccess (the console proxy's
@@ -516,6 +583,9 @@ class ControlPlaneClient:
         body: Dict[str, Any] = {"ResourceID": resource_id}
         if user_id is not None:
             body["UserID"] = user_id
+        normalized_account_id = _normalize_optional_account_id(account_id)
+        if normalized_account_id is not None:
+            body["AccountID"] = normalized_account_id
         return self._request("GetOpenVikingCollectionUserAccess", body)
 
     # --- User management (enterprise-tier libraries: multi-user) -------------
@@ -530,12 +600,10 @@ class ControlPlaneClient:
         role: Optional[str] = None,
         page: int = 1,
         limit: int = 20,
+        account_id: Optional[str] = None,
     ) -> Dict[str, Any]:
         # ListOpenVikingCollectionUser: users under the library (ApiKey masked).
-        if page < 1:
-            raise ValueError("page must be >= 1")
-        if not 1 <= limit <= 200:
-            raise ValueError("limit must be between 1 and 200")
+        _validate_pagination(page, limit)
         body: Dict[str, Any] = {
             "ResourceID": resource_id,
             "Page": page,
@@ -545,17 +613,24 @@ class ControlPlaneClient:
             body["UserID"] = user_id
         if role is not None:
             body["Role"] = role
+        normalized_account_id = _normalize_optional_account_id(account_id)
+        if normalized_account_id is not None:
+            body["AccountID"] = normalized_account_id
         return self._request("ListOpenVikingCollectionUser", body)
 
     def register_user(
         self,
         resource_id: str,
         user_id: str,
+        account_id: Optional[str] = None,
         extra: Optional[Dict[str, Any]] = None,
     ) -> Dict[str, Any]:
         # RegisterOpenVikingUser: create a regular "user" under the library.
         # The backend does not accept a Role parameter.
         body: Dict[str, Any] = {"ResourceID": resource_id, "UserID": user_id}
+        normalized_account_id = _normalize_optional_account_id(account_id)
+        if normalized_account_id is not None:
+            body["AccountID"] = normalized_account_id
         if extra:
             body.update(extra)
         return self._request("RegisterOpenVikingUser", body)
@@ -565,6 +640,7 @@ class ControlPlaneClient:
         resource_id: str,
         user_id: str,
         regenerate_key: bool = False,
+        account_id: Optional[str] = None,
         extra: Optional[Dict[str, Any]] = None,
     ) -> Dict[str, Any]:
         # UpdateOpenVikingUser only supports rotating the user's ApiKey.
@@ -577,14 +653,69 @@ class ControlPlaneClient:
             "UserID": user_id,
             "RegenerateKey": True,
         }
+        normalized_account_id = _normalize_optional_account_id(account_id)
+        if normalized_account_id is not None:
+            body["AccountID"] = normalized_account_id
         if extra:
             body.update(extra)
         return self._request("UpdateOpenVikingUser", body)
 
-    def delete_user(self, resource_id: str, user_id: str) -> Dict[str, Any]:
+    def delete_user(
+        self,
+        resource_id: str,
+        user_id: str,
+        account_id: Optional[str] = None,
+    ) -> Dict[str, Any]:
         # DeleteOpenVikingUser: remove a user from the library.
+        body: Dict[str, Any] = {"ResourceID": resource_id, "UserID": user_id}
+        normalized_account_id = _normalize_optional_account_id(account_id)
+        if normalized_account_id is not None:
+            body["AccountID"] = normalized_account_id
+        return self._request("DeleteOpenVikingUser", body)
+
+    # --- Account management (enterprise-tier data spaces) -------------------
+
+    def create_account(
+        self,
+        resource_id: str,
+        account_id: str,
+        extra: Optional[Dict[str, Any]] = None,
+    ) -> Dict[str, Any]:
+        body: Dict[str, Any] = {
+            "ResourceID": resource_id,
+            "AccountID": validate_account_id(account_id),
+        }
+        if extra:
+            body.update(extra)
+        return self._request("CreateOpenVikingAccount", body)
+
+    def list_accounts(
+        self,
+        resource_id: str,
+        keyword: Optional[str] = None,
+        page: int = 1,
+        limit: int = 20,
+    ) -> Dict[str, Any]:
+        _validate_pagination(page, limit)
+        body: Dict[str, Any] = {
+            "ResourceID": resource_id,
+            "Page": page,
+            "Limit": limit,
+        }
+        # Keyword is a substring filter, not an account identifier.
+        if keyword is not None:
+            body["Keyword"] = keyword
+        return self._request("ListOpenVikingAccounts", body)
+
+    def delete_account(self, resource_id: str, account_id: str) -> Dict[str, Any]:
+        account_id = validate_account_id(account_id)
+        # Mirror the backend guard before a caller crosses a destructive-confirmation
+        # boundary only to have the reserved default data space rejected remotely.
+        if account_id == DEFAULT_ACCOUNT_ID:
+            raise ValueError("the default account cannot be deleted")
         return self._request(
-            "DeleteOpenVikingUser", {"ResourceID": resource_id, "UserID": user_id}
+            "DeleteOpenVikingAccount",
+            {"ResourceID": resource_id, "AccountID": account_id},
         )
 
 

@@ -56,6 +56,8 @@ def _pretty_renderable(result: Any, view: str) -> Any:
         return _collections_table(result.get("Collections"))
     if view == "users" and isinstance(result, dict):
         return _users_table(result.get("UserList"), result.get("Total"))
+    if view == "accounts" and isinstance(result, dict):
+        return _accounts_table(result.get("AccountList"), result.get("Total"))
     if view == "usage" and isinstance(result, dict):
         return _usage_panel(result)
     if view == "collection" and isinstance(result, dict):
@@ -120,6 +122,31 @@ def _users_table(rows: Any, total: Any) -> Any:
     return table
 
 
+def _accounts_table(rows: Any, total: Any) -> Any:
+    if not isinstance(rows, list):
+        return _generic_renderable({"AccountList": rows, "Total": total})
+    count = total if total is not None else len(rows)
+    table = Table(
+        title=f"Data Spaces ({count})",
+        box=box.ROUNDED,
+        header_style="bold cyan",
+    )
+    table.add_column("Account ID", style="bold")
+    table.add_column("Users")
+    table.add_column("Created")
+    table.add_column("Default")
+    for row in rows:
+        if not isinstance(row, dict):
+            continue
+        table.add_row(
+            _text(row.get("AccountID")),
+            _text(row.get("UserCount")),
+            _text(row.get("CreateTime")),
+            _value(row.get("IsDefault"), "IsDefault"),
+        )
+    return table
+
+
 def _usage_panel(result: Dict[str, Any]) -> Panel:
     files = Table.grid(padding=(0, 2))
     files.add_column(style="dim", no_wrap=True)
@@ -145,10 +172,18 @@ def _usage_panel(result: Dict[str, Any]) -> Panel:
                 "CNY equivalent",
                 f"¥{_text(billing.get('CNY'))} / {_period(billing)}",
             )
-    else:
+    elif "EstimatedCosts" in result:
         billing_table.add_row(
             "Estimated cost",
             f"¥{_text(result.get('EstimatedCosts'))} / hour",
+        )
+    else:
+        billing_table.add_row(
+            "Estimated cost",
+            Text(
+                "— (reported for the whole library, not per data space)",
+                style="dim",
+            ),
         )
 
     content = Group(

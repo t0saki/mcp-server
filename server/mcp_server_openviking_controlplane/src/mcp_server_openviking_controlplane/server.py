@@ -11,6 +11,7 @@ from mcp_server_openviking_controlplane.client import (
     ControlPlaneError,
     build_client,
 )
+from mcp_server_openviking_controlplane.config import ACCOUNT_ID_RULES
 
 logger = logging.getLogger(__name__)
 logging.basicConfig(
@@ -128,22 +129,33 @@ def get_collection(
 
 @mcp.tool()
 def get_usage(
-    resource_id: str, ctx: Optional[Context] = None
+    resource_id: str,
+    account_id: Optional[str] = None,
+    user_id: Optional[str] = None,
+    ctx: Optional[Context] = None,
 ) -> Dict[str, Any]:
-    """Get overall usage / file counts for one OpenViking collection by ResourceID.
+    """Get library-wide or account/user-scoped usage and file counts.
 
     Args:
         resource_id: target library ResourceID.
+        account_id: optional data space (account) scope; omit for whole-library
+                    usage, or the default data space when user_id is supplied.
+        user_id: optional user scope; supported with or without account_id.
 
     Returns:
         {"CurContextFileNum", "ResourcesFileNum", "UserFileNum",
          "FreshTime" (Unix seconds), "EstimatedCosts", "EstimatedBilling"}.
-         EstimatedBilling adds CNY / hour plus PayType and, for AgentPlan
-         payment, the equivalent AFP / hour. Counts are whole-library + the
-         three top-level dirs only; per-uri breakdown is not supported.
+         For library-wide queries, EstimatedBilling adds CNY / hour plus PayType
+         and, for AgentPlan payment, the equivalent AFP / hour. Scoped responses
+         (when account_id and/or user_id is set) omit the library-wide
+         EstimatedCosts and EstimatedBilling because they would be misleading.
     """
     try:
-        return get_client(ctx).get_usage(resource_id)
+        return get_client(ctx).get_usage(
+            resource_id,
+            account_id=account_id,
+            user_id=user_id,
+        )
     except Exception as e:
         logger.error(f"get_usage failed: {e}")
         return _err(e)
@@ -153,25 +165,32 @@ def get_usage(
 def get_collection_api_key(
     resource_id: str,
     user_id: Optional[str] = None,
+    account_id: Optional[str] = None,
     ctx: Optional[Context] = None,
 ) -> Dict[str, Any]:
     """Get one user's plaintext data-plane API Key.
 
     Backed by the action GetOpenVikingCollectionUserAccess. When user_id is omitted,
-    returns the library's default-user credential; enterprise libraries can select
-    a specific user. You can only query libraries under your own account; there is
-    no cross-account / sudo lookup. NOTE: the ApiKey is plaintext — handle and
-    surface it with care.
+    returns the selected data space's default-user credential; enterprise libraries
+    can select a specific user. You can only query libraries associated with your
+    control-plane credential; there is no cross-owner / sudo lookup. NOTE: the
+    ApiKey is plaintext — handle and surface it with care.
 
     Args:
         resource_id: target library ResourceID.
-        user_id: optional target UserID; omit for the default user.
+        user_id: optional target UserID; omit for the selected data space's
+                 default user.
+        account_id: optional data space (account); omit for the default data space.
 
     Returns:
         {"UserID", "Role", "ApiKey"}
     """
     try:
-        return get_client(ctx).get_user_access(resource_id, user_id=user_id)
+        return get_client(ctx).get_user_access(
+            resource_id,
+            user_id=user_id,
+            account_id=account_id,
+        )
     except Exception as e:
         logger.error(f"get_collection_api_key failed: {e}")
         return _err(e)
@@ -307,6 +326,7 @@ def list_collection_users(
     role: Optional[str] = None,
     page: int = 1,
     limit: int = 20,
+    account_id: Optional[str] = None,
     ctx: Optional[Context] = None,
 ) -> Dict[str, Any]:
     """List the users registered under one OpenViking collection.
@@ -321,6 +341,7 @@ def list_collection_users(
         role: optional role filter, e.g. "admin" or "user".
         page: 1-based page number; defaults to 1.
         limit: users per page, 1 to 200; defaults to 20.
+        account_id: optional data space (account); omit for the default data space.
 
     Returns:
         {"UserList": [ {"UserID", "Role", "ApiKey" (masked)} ], "Total": N}
@@ -332,6 +353,7 @@ def list_collection_users(
             role=role,
             page=page,
             limit=limit,
+            account_id=account_id,
         )
     except Exception as e:
         logger.error(f"list_collection_users failed: {e}")
@@ -340,7 +362,10 @@ def list_collection_users(
 
 @mcp.tool()
 def register_collection_user(
-    resource_id: str, user_id: str, ctx: Optional[Context] = None
+    resource_id: str,
+    user_id: str,
+    account_id: Optional[str] = None,
+    ctx: Optional[Context] = None,
 ) -> Dict[str, Any]:
     """Register a NEW user under an OpenViking collection (RegisterOpenVikingUser).
 
@@ -350,13 +375,18 @@ def register_collection_user(
 
     Args:
         resource_id: target library ResourceID.
-        user_id: the UserID for the new user (unique within the library).
+        user_id: the UserID for the new user (unique within the data space).
+        account_id: optional data space (account); omit for the default data space.
 
     Returns:
         {"Success": true}
     """
     try:
-        return get_client(ctx).register_user(resource_id, user_id)
+        return get_client(ctx).register_user(
+            resource_id,
+            user_id,
+            account_id=account_id,
+        )
     except Exception as e:
         logger.error(f"register_collection_user failed: {e}")
         return _err(e)
@@ -367,6 +397,7 @@ def update_collection_user(
     resource_id: str,
     user_id: str,
     regenerate_key: bool,
+    account_id: Optional[str] = None,
     ctx: Optional[Context] = None,
 ) -> Dict[str, Any]:
     """Update a user under an OpenViking collection (currently API Key rotation).
@@ -379,6 +410,7 @@ def update_collection_user(
         resource_id: target library ResourceID.
         user_id: the UserID to update.
         regenerate_key: true to rotate the user's data-plane API Key.
+        account_id: optional data space (account); omit for the default data space.
 
     Returns:
         {"Success": true}
@@ -388,6 +420,7 @@ def update_collection_user(
             resource_id,
             user_id,
             regenerate_key=regenerate_key,
+            account_id=account_id,
         )
     except Exception as e:
         logger.error(f"update_collection_user failed: {e}")
@@ -396,7 +429,10 @@ def update_collection_user(
 
 @mcp.tool()
 def delete_collection_user(
-    resource_id: str, user_id: str, ctx: Optional[Context] = None
+    resource_id: str,
+    user_id: str,
+    account_id: Optional[str] = None,
+    ctx: Optional[Context] = None,
 ) -> Dict[str, Any]:
     """⚠️ Delete a user from an OpenViking collection (DeleteOpenVikingUser).
 
@@ -406,14 +442,116 @@ def delete_collection_user(
     Args:
         resource_id: target library ResourceID.
         user_id: the UserID to delete.
+        account_id: optional data space (account); omit for the default data space.
 
     Returns:
         {"Success": true}
     """
     try:
-        return get_client(ctx).delete_user(resource_id, user_id)
+        return get_client(ctx).delete_user(
+            resource_id,
+            user_id,
+            account_id=account_id,
+        )
     except Exception as e:
         logger.error(f"delete_collection_user failed: {e}")
+        return _err(e)
+
+
+@mcp.tool()
+def list_collection_accounts(
+    resource_id: str,
+    keyword: Optional[str] = None,
+    page: int = 1,
+    limit: int = 20,
+    ctx: Optional[Context] = None,
+) -> Dict[str, Any]:
+    """List data spaces (accounts) under an enterprise-tier collection.
+
+    Args:
+        resource_id: target library ResourceID.
+        keyword: optional AccountID substring filter.
+        page: 1-based page number; defaults to 1.
+        limit: data spaces per page, 1 to 200; defaults to 20.
+
+    Returns:
+        {"AccountList": [{"AccountID", "UserCount", "CreateTime",
+         "IsDefault"}], "Total": N}
+    """
+    try:
+        return get_client(ctx).list_accounts(
+            resource_id,
+            keyword=keyword,
+            page=page,
+            limit=limit,
+        )
+    except Exception as e:
+        logger.error(f"list_collection_accounts failed: {e}")
+        return _err(e)
+
+
+@mcp.tool(
+    description=(
+        "Create a data space (account), an isolation boundary within a library. "
+        "CONFIRM WITH THE USER before calling. The backend creates a default "
+        "admin in the new data space; the per-library account limit is "
+        f"backend-configured. AccountID {ACCOUNT_ID_RULES}."
+    )
+)
+def create_collection_account(
+    resource_id: str,
+    account_id: str,
+    ctx: Optional[Context] = None,
+) -> Dict[str, Any]:
+    """Create a data space (account), an isolation boundary within a library.
+
+    CONFIRM WITH THE USER before calling. This enterprise-tier capability creates
+    a separate boundary for users, credentials, memories, resources, sessions,
+    and skills. The backend automatically creates a ``default`` admin inside the
+    new data space. The per-library account limit is backend-configured.
+
+    AccountID is validated locally: it must be 1-64 characters using only
+    letters, digits, '_', '.', '@', or '-'; must not start with '_'; must not
+    be '.' or '..'; and may contain at most one '@'.
+
+    Args:
+        resource_id: target library ResourceID.
+        account_id: AccountID for the new data space.
+
+    Returns:
+        {"Success": true, "AccountID": "..."}
+    """
+    try:
+        return get_client(ctx).create_account(resource_id, account_id)
+    except Exception as e:
+        logger.error(f"create_collection_account failed: {e}")
+        return _err(e)
+
+
+@mcp.tool()
+def delete_collection_account(
+    resource_id: str,
+    account_id: str,
+    ctx: Optional[Context] = None,
+) -> Dict[str, Any]:
+    """⚠️ IRREVERSIBLY delete a data space and all isolated data inside it.
+
+    CONFIRM WITH THE USER before calling. Deletion cascades through ALL users,
+    credentials, memories, resources, sessions, and skills in the data space.
+    The ``default`` data space cannot be deleted; both the client and backend
+    reject it.
+
+    Args:
+        resource_id: target library ResourceID.
+        account_id: AccountID of the data space to delete.
+
+    Returns:
+        {"Success": true}
+    """
+    try:
+        return get_client(ctx).delete_account(resource_id, account_id)
+    except Exception as e:
+        logger.error(f"delete_collection_account failed: {e}")
         return _err(e)
 
 
