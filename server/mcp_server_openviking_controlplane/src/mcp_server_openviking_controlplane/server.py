@@ -470,12 +470,12 @@ def list_collection_accounts(
 
     Args:
         resource_id: target library ResourceID.
-        keyword: optional AccountID substring filter.
+        keyword: optional OpenVikingAccountID substring filter.
         page: 1-based page number; defaults to 1.
         limit: data spaces per page, 1 to 200; defaults to 20.
 
     Returns:
-        {"AccountList": [{"AccountID", "UserCount", "CreateTime",
+        {"AccountList": [{"OpenVikingAccountID", "UserCount", "CreateTime",
          "IsDefault"}], "Total": N}
     """
     try:
@@ -495,7 +495,7 @@ def list_collection_accounts(
         "Create a data space (account), an isolation boundary within a library. "
         "CONFIRM WITH THE USER before calling. The backend creates a default "
         "admin in the new data space; the per-library account limit is "
-        f"backend-configured. AccountID {ACCOUNT_ID_RULES}."
+        f"backend-configured. OpenVikingAccountID {ACCOUNT_ID_RULES}."
     )
 )
 def create_collection_account(
@@ -510,16 +510,16 @@ def create_collection_account(
     and skills. The backend automatically creates a ``default`` admin inside the
     new data space. The per-library account limit is backend-configured.
 
-    AccountID is validated locally: it must be 1-64 characters using only
+    OpenVikingAccountID is validated locally: it must be 1-64 characters using only
     letters, digits, '_', '.', '@', or '-'; must not start with '_'; must not
     be '.' or '..'; and may contain at most one '@'.
 
     Args:
         resource_id: target library ResourceID.
-        account_id: AccountID for the new data space.
+        account_id: OpenVikingAccountID for the new data space.
 
     Returns:
-        {"Success": true, "AccountID": "..."}
+        {"Success": true, "OpenVikingAccountID": "..."}
     """
     try:
         return get_client(ctx).create_account(resource_id, account_id)
@@ -543,7 +543,7 @@ def delete_collection_account(
 
     Args:
         resource_id: target library ResourceID.
-        account_id: AccountID of the data space to delete.
+        account_id: OpenVikingAccountID of the data space to delete.
 
     Returns:
         {"Success": true}

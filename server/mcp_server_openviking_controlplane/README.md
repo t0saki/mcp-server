@@ -31,13 +31,15 @@ have role `user`; `user update` currently supports API Key rotation only.
 
 The `account *` actions manage enterprise-tier data spaces: first-level isolation
 boundaries for users, credentials, memories, resources, sessions, and skills. The
-released backend uses AccountID `default` when `--account-id` is omitted, preserving
-existing behavior. Creating one automatically adds its `default` admin user. Account
-IDs are 1-64 characters using only ASCII letters, digits, `_`, `.`, `@`, or `-`; they
-cannot start with `_`, equal `.` or `..`, or contain more than one `@`. The
-per-library quota is backend-configured (currently 100 by default). Deleting a data
-space cascades to everything inside it and is irreversible; `default` cannot be
-deleted. Treat `CreateTime` from `account list` as an opaque backend timestamp string.
+released backend uses account `default` when `--account-id` is omitted, preserving
+existing behavior. Every account-aware action serializes the scope as
+`OpenVikingAccountID` on the wire. Creating one automatically adds its `default`
+admin user. An OpenVikingAccountID is 1-64 characters using only ASCII letters,
+digits, `_`, `.`, `@`, or `-`; it cannot start with `_`, equal `.` or `..`, or
+contain more than one `@`. The per-library quota is backend-configured (currently
+100 by default). Deleting a data space cascades to everything inside it and is
+irreversible; `default` cannot be deleted. Treat `CreateTime` from `account list`
+as an opaque backend timestamp string.
 
 ## Endpoint
 
@@ -80,7 +82,7 @@ later without touching the rest.
 
 `VIKING_EXTRA_HEADERS` is a comma-separated list of `Key: Value` pairs; `--header`
 takes one pair and may be repeated (CLI wins over env). Both are merged onto every
-request — useful for swim-lane routing, e.g. `-H 'x-tt-env: lujiakun'`. The
+request — useful for swim-lane routing, e.g. `-H 'x-tt-env: <swimlane>'`. The
 `Authorization` and `Content-Type` headers are protected and cannot be overridden.
 
 ## CLI usage
@@ -96,12 +98,12 @@ uv run ov-cp list
 uv run ov-cp get   <ResourceID>
 uv run ov-cp usage <ResourceID>
 uv run ov-cp usage <ResourceID> --account-id team-alpha
-uv run ov-cp usage <ResourceID> --user-id xiaohong  # user in default data space
-uv run ov-cp usage <ResourceID> --account-id team-alpha --user-id xiaohong
+uv run ov-cp usage <ResourceID> --user-id alice  # user in default data space
+uv run ov-cp usage <ResourceID> --account-id team-alpha --user-id alice
 uv run ov-cp api-key <ResourceID>
-uv run ov-cp api-key <ResourceID> --user-id xiaohong
+uv run ov-cp api-key <ResourceID> --user-id alice
 uv run ov-cp api-key <ResourceID> --account-id team-alpha
-uv run ov-cp api-key <ResourceID> --account-id team-alpha --user-id xiaohong
+uv run ov-cp api-key <ResourceID> --account-id team-alpha --user-id alice
 
 # create (consumes paid quota; always uses the AgentPlan model path and the
 # configured AgentPlan key; model source/parameters and image version are hidden)
@@ -140,9 +142,9 @@ uv run ov-cp update <ResourceID> --model-api-key ark-xxxxxxxx
 # manage users of an enterprise-tier library (key must be associated with it)
 uv run ov-cp user list     <ResourceID>
 uv run ov-cp user list     <ResourceID> --account-id team-alpha --role user --page 1 --limit 20
-uv run ov-cp user register <ResourceID> xiaohong --account-id team-alpha
-uv run ov-cp user update   <ResourceID> xiaohong --account-id team-alpha --regenerate-key
-uv run ov-cp user delete   <ResourceID> xiaohong --account-id team-alpha --yes
+uv run ov-cp user register <ResourceID> alice --account-id team-alpha
+uv run ov-cp user update   <ResourceID> alice --account-id team-alpha --regenerate-key
+uv run ov-cp user delete   <ResourceID> alice --account-id team-alpha --yes
 
 # manage data spaces (accounts) in an enterprise-tier library
 uv run ov-cp account list   <ResourceID> --keyword team --page 1 --limit 20
@@ -170,8 +172,7 @@ Library-wide `usage` preserves the backend's legacy `EstimatedCosts` field and a
 returns `EstimatedBilling` with an explicit hourly period and CNY unit. For
 collections paid by AgentPlan it includes the equivalent AFP deduction and payment
 scenario; for `volc_pay` it reports CNY only. Account- or user-scoped usage omits
-both library-wide estimates. `--user-id` may be used alone for the `default` account;
-when `--account-id` is supplied, usage sends it as `OpenVikingAccountID` internally.
+both library-wide estimates. `--user-id` may be used alone for the `default` account.
 
 Flags override env. The endpoint defaults to the public gateway; override it only
 for testing (e.g. against a port-forward) with `-e` / `VIKING_ENDPOINT` —

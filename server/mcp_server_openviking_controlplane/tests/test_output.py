@@ -104,13 +104,13 @@ class OutputRenderingTest(unittest.TestCase):
         data = {
             "AccountList": [
                 {
-                    "AccountID": "default",
+                    "OpenVikingAccountID": "default",
                     "UserCount": 3,
                     "CreateTime": "2026-08-27T12:34:56Z",
                     "IsDefault": True,
                 },
                 {
-                    "AccountID": "team-a",
+                    "OpenVikingAccountID": "team-a",
                     "UserCount": 1,
                     "CreateTime": "1732100000",
                     "IsDefault": False,

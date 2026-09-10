@@ -154,7 +154,7 @@ def validate_account_id(account_id: str, label: str = "account_id") -> str:
 
 
 def _normalize_optional_account_id(account_id: Optional[str]) -> Optional[str]:
-    """Match the backend's optional AccountID normalization for user actions."""
+    """Match the backend's optional account normalization for user actions."""
     if account_id is None:
         return None
     if not isinstance(account_id, str):
@@ -539,8 +539,6 @@ class ControlPlaneClient:
     ) -> Dict[str, Any]:
         body: Dict[str, Any] = {"ResourceID": resource_id}
         if account_id is not None:
-            # Usage uses the backend's historical field name; other account-aware
-            # actions serialize this identifier as AccountID.
             body["OpenVikingAccountID"] = validate_account_id(account_id)
         if user_id is not None:
             # A UserID without an explicit account selects the default data space.
@@ -585,7 +583,7 @@ class ControlPlaneClient:
             body["UserID"] = user_id
         normalized_account_id = _normalize_optional_account_id(account_id)
         if normalized_account_id is not None:
-            body["AccountID"] = normalized_account_id
+            body["OpenVikingAccountID"] = normalized_account_id
         return self._request("GetOpenVikingCollectionUserAccess", body)
 
     # --- User management (enterprise-tier libraries: multi-user) -------------
@@ -615,7 +613,7 @@ class ControlPlaneClient:
             body["Role"] = role
         normalized_account_id = _normalize_optional_account_id(account_id)
         if normalized_account_id is not None:
-            body["AccountID"] = normalized_account_id
+            body["OpenVikingAccountID"] = normalized_account_id
         return self._request("ListOpenVikingCollectionUser", body)
 
     def register_user(
@@ -630,7 +628,7 @@ class ControlPlaneClient:
         body: Dict[str, Any] = {"ResourceID": resource_id, "UserID": user_id}
         normalized_account_id = _normalize_optional_account_id(account_id)
         if normalized_account_id is not None:
-            body["AccountID"] = normalized_account_id
+            body["OpenVikingAccountID"] = normalized_account_id
         if extra:
             body.update(extra)
         return self._request("RegisterOpenVikingUser", body)
@@ -655,7 +653,7 @@ class ControlPlaneClient:
         }
         normalized_account_id = _normalize_optional_account_id(account_id)
         if normalized_account_id is not None:
-            body["AccountID"] = normalized_account_id
+            body["OpenVikingAccountID"] = normalized_account_id
         if extra:
             body.update(extra)
         return self._request("UpdateOpenVikingUser", body)
@@ -670,7 +668,7 @@ class ControlPlaneClient:
         body: Dict[str, Any] = {"ResourceID": resource_id, "UserID": user_id}
         normalized_account_id = _normalize_optional_account_id(account_id)
         if normalized_account_id is not None:
-            body["AccountID"] = normalized_account_id
+            body["OpenVikingAccountID"] = normalized_account_id
         return self._request("DeleteOpenVikingUser", body)
 
     # --- Account management (enterprise-tier data spaces) -------------------
@@ -683,7 +681,7 @@ class ControlPlaneClient:
     ) -> Dict[str, Any]:
         body: Dict[str, Any] = {
             "ResourceID": resource_id,
-            "AccountID": validate_account_id(account_id),
+            "OpenVikingAccountID": validate_account_id(account_id),
         }
         if extra:
             body.update(extra)
@@ -715,7 +713,7 @@ class ControlPlaneClient:
             raise ValueError("the default account cannot be deleted")
         return self._request(
             "DeleteOpenVikingAccount",
-            {"ResourceID": resource_id, "AccountID": account_id},
+            {"ResourceID": resource_id, "OpenVikingAccountID": account_id},
         )
 
 

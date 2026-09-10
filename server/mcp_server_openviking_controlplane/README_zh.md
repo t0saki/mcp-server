@@ -29,8 +29,9 @@ OpenViking 控制面（topapi）的 MCP Server **与** CLI —— 用于管理 O
 当前只支持重生 API Key。
 
 `account *` 系列管理企业版库的数据空间：它是用户、凭证、记忆、资源、会话与技能的
-一级隔离边界。已发布后端在省略 `--account-id` 时使用 AccountID `default`，因此存量用法
-保持不变。新建数据空间时会自动添加其 `default` 管理员用户。AccountID 长度为 1-64 个
+一级隔离边界。已发布后端在省略 `--account-id` 时使用数据空间 `default`，因此存量用法
+保持不变。所有支持数据空间的接口都在请求体中以 `OpenVikingAccountID` 传递该范围。
+新建数据空间时会自动添加其 `default` 管理员用户。OpenVikingAccountID 长度为 1-64 个
 字符，只能包含 ASCII 字母、数字、`_`、`.`、`@`、`-`；不能以 `_` 开头，不能等于 `.`
 或 `..`，且至多包含一个 `@`。单库配额由后端配置（当前默认 100）。删除数据空间会不可逆
 地级联删除其中所有内容；`default` 不可删除。将 `account list` 返回的 `CreateTime` 视为
@@ -73,7 +74,7 @@ Action 在 **path** 里（不走 `?Action=&Version=` query）。请求体是该 
 
 `VIKING_EXTRA_HEADERS` 是逗号分隔的 `Key: Value` 列表；`--header` 每次带一对、可重复
 （CLI 优先于环境变量）。两者合并后加到每个请求上，常用于泳道路由，例如
-`-H 'x-tt-env: lujiakun'`。`Authorization`、`Content-Type` 为受保护头，不可覆盖。
+`-H 'x-tt-env: <swimlane>'`。`Authorization`、`Content-Type` 为受保护头，不可覆盖。
 
 ## CLI 用法
 
@@ -88,12 +89,12 @@ uv run ov-cp list
 uv run ov-cp get   <ResourceID>
 uv run ov-cp usage <ResourceID>
 uv run ov-cp usage <ResourceID> --account-id team-alpha
-uv run ov-cp usage <ResourceID> --user-id xiaohong  # default 数据空间内的用户
-uv run ov-cp usage <ResourceID> --account-id team-alpha --user-id xiaohong
+uv run ov-cp usage <ResourceID> --user-id alice  # default 数据空间内的用户
+uv run ov-cp usage <ResourceID> --account-id team-alpha --user-id alice
 uv run ov-cp api-key <ResourceID>
-uv run ov-cp api-key <ResourceID> --user-id xiaohong
+uv run ov-cp api-key <ResourceID> --user-id alice
 uv run ov-cp api-key <ResourceID> --account-id team-alpha
-uv run ov-cp api-key <ResourceID> --account-id team-alpha --user-id xiaohong
+uv run ov-cp api-key <ResourceID> --account-id team-alpha --user-id alice
 
 # 建库（消耗付费配额；固定使用 AgentPlan 模型路径和已配置的 AgentPlan key，
 #       不开放模型来源、模型参数、模型鉴权与 OpenViking 镜像版本）
@@ -127,9 +128,9 @@ uv run ov-cp update <ResourceID> --model-api-key ark-xxxxxxxx
 # 管理企业版库的用户（key 需与该库已关联）
 uv run ov-cp user list     <ResourceID>
 uv run ov-cp user list     <ResourceID> --account-id team-alpha --role user --page 1 --limit 20
-uv run ov-cp user register <ResourceID> xiaohong --account-id team-alpha
-uv run ov-cp user update   <ResourceID> xiaohong --account-id team-alpha --regenerate-key
-uv run ov-cp user delete   <ResourceID> xiaohong --account-id team-alpha --yes
+uv run ov-cp user register <ResourceID> alice --account-id team-alpha
+uv run ov-cp user update   <ResourceID> alice --account-id team-alpha --regenerate-key
+uv run ov-cp user delete   <ResourceID> alice --account-id team-alpha --yes
 
 # 管理企业版库的数据空间（Account）
 uv run ov-cp account list   <ResourceID> --keyword team --page 1 --limit 20
@@ -155,8 +156,7 @@ uv run ov-cp --output pretty list     # 强制终端视图
 库级 `usage` 保留后端原有的 `EstimatedCosts` 字段，同时新增 `EstimatedBilling`，
 明确费用为每小时 CNY 估值。AgentPlan 支付的库还会返回对应的 AFP 抵扣量和
 支付场景；`volc_pay` 只返回 CNY。按数据空间或用户查询时会去掉这两个库级估值。
-`--user-id` 可单独使用，此时查询 `default` 数据空间；传入 `--account-id` 时，usage
-内部使用 `OpenVikingAccountID` 字段发送该范围。
+`--user-id` 可单独使用，此时查询 `default` 数据空间。
 
 命令行参数优先于环境变量。端点默认指向公网网关；仅在测试时（如指向 port-forward）才用
 `-e` / `VIKING_ENDPOINT` 覆盖：`uv run ov-cp -e http://localhost:18080 list`。

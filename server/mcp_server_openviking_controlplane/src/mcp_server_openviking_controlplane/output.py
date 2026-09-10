@@ -139,7 +139,7 @@ def _accounts_table(rows: Any, total: Any) -> Any:
         if not isinstance(row, dict):
             continue
         table.add_row(
-            _text(row.get("AccountID")),
+            _text(row.get("OpenVikingAccountID")),
             _text(row.get("UserCount")),
             _text(row.get("CreateTime")),
             _value(row.get("IsDefault"), "IsDefault"),

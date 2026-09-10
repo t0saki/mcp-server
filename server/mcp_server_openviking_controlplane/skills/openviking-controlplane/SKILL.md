@@ -39,11 +39,11 @@ ov-cp list                       # list collections (optionally --project X)
 ov-cp get     <ResourceID>       # collection info (Status, models, version, ...)
 ov-cp usage   <ResourceID>       # file counts / hourly CNY and AgentPlan AFP estimate
 ov-cp usage   <ResourceID> --account-id team-alpha
-ov-cp usage   <ResourceID> --user-id xiaohong  # user in account default
-ov-cp usage   <ResourceID> --account-id team-alpha --user-id xiaohong
+ov-cp usage   <ResourceID> --user-id alice  # user in account default
+ov-cp usage   <ResourceID> --account-id team-alpha --user-id alice
 ov-cp api-key <ResourceID>       # default user's plaintext data-plane key
-ov-cp api-key <ResourceID> --user-id xiaohong  # selected user's plaintext key
-ov-cp api-key <ResourceID> --account-id team-alpha --user-id xiaohong
+ov-cp api-key <ResourceID> --user-id alice  # selected user's plaintext key
+ov-cp api-key <ResourceID> --account-id team-alpha --user-id alice
 ov-cp create  --name my_kb       # create a collection (see below)
 ov-cp update  <ResourceID> --description "..."   # update fields / switch billing
 ov-cp update  <ResourceID> --model-api-key ark-xxx  # overwrite AgentPlan model key
@@ -52,15 +52,15 @@ ov-cp delete  <ResourceID> --yes # delete (irreversible; uninstalls the Helm rel
 # users of an enterprise-tier library (key must be associated with the library):
 ov-cp user list     <ResourceID>                     # users (ApiKey is masked)
 ov-cp user list     <ResourceID> --role user --page 1 --limit 20
-ov-cp user register <ResourceID> xiaohong            # new users always get role=user
-ov-cp user update   <ResourceID> xiaohong --regenerate-key
-ov-cp user delete   <ResourceID> xiaohong --yes      # revoke a user's credential
+ov-cp user register <ResourceID> alice            # new users always get role=user
+ov-cp user update   <ResourceID> alice --regenerate-key
+ov-cp user delete   <ResourceID> alice --yes      # revoke a user's credential
 
 # target a non-default data space with --account-id:
 ov-cp user list     <ResourceID> --account-id team-alpha
-ov-cp user register <ResourceID> xiaohong --account-id team-alpha
-ov-cp user update   <ResourceID> xiaohong --account-id team-alpha --regenerate-key
-ov-cp user delete   <ResourceID> xiaohong --account-id team-alpha --yes
+ov-cp user register <ResourceID> alice --account-id team-alpha
+ov-cp user update   <ResourceID> alice --account-id team-alpha --regenerate-key
+ov-cp user delete   <ResourceID> alice --account-id team-alpha --yes
 
 # data spaces (accounts) of an enterprise-tier library:
 ov-cp account list   <ResourceID> --keyword team --page 1 --limit 20
@@ -70,7 +70,7 @@ ov-cp account delete <ResourceID> team-alpha  # prompts before cascading deletio
 
 After `user update --regenerate-key`, fetch the replacement with
 `api-key <ResourceID> --user-id <UserID>`; the update response only confirms
-success and does not contain the new key. Include `--account-id <AccountID>` when
+success and does not contain the new key. Include `--account-id <OpenVikingAccountID>` when
 the user is outside account `default`.
 
 `update --model-api-key <ark-key>` overwrites the library's AgentPlan MODEL
@@ -97,18 +97,18 @@ Library-wide `usage` keeps `EstimatedCosts` for compatibility and adds
 `EstimatedBilling`. That object identifies the hourly period and CNY estimate;
 AgentPlan-paid collections also include the AFP amount and business scenario.
 Account- or user-scoped usage omits both library-wide fields. `--user-id` may be
-used alone for a user in account `default`; account scope is sent internally as
-`OpenVikingAccountID`.
+used alone for a user in account `default`.
 
 ## Data spaces (accounts)
 
 Treat an account as an enterprise-tier library's first-level isolation boundary
 for users, credentials, memories, resources, sessions, and skills. Treat
-`default` as the released backend's default AccountID, so omitting
-`--account-id` preserves existing behavior. Expect a newly created data space to
+`default` as the released backend's default account, so omitting
+`--account-id` preserves existing behavior. Every account-aware action sends the
+scope as `OpenVikingAccountID`. Expect a newly created data space to
 contain an automatically created `default` admin user.
 
-Validate AccountID locally before sending a request; reject invalid input without
+Validate OpenVikingAccountID locally before sending a request; reject invalid input without
 a backend request or cost. Apply all of these naming rules:
 
 - Require 1-64 characters.
@@ -123,13 +123,13 @@ backend timestamp string. Never delete account `default`.
 
 Use this confirmation workflow before deleting any other data space:
 
-1. First restate the target library ResourceID, exact AccountID, and full destruction scope: every user, credential, memory, resource, session, and skill in the data space. Ask the user to confirm that scope.
-2. After that confirmation, require the user to repeat the exact AccountID.
-3. Compare the repeated AccountID exactly with the target. Never infer an AccountID from a keyword or partial match in `account list`.
-4. Only after both confirmations, run `ov-cp account delete <ResourceID> <AccountID> --yes`.
+1. First restate the target library ResourceID, exact OpenVikingAccountID, and full destruction scope: every user, credential, memory, resource, session, and skill in the data space. Ask the user to confirm that scope.
+2. After that confirmation, require the user to repeat the exact OpenVikingAccountID.
+3. Compare the repeated OpenVikingAccountID exactly with the target. Never infer an OpenVikingAccountID from a keyword or partial match in `account list`.
+4. Only after both confirmations, run `ov-cp account delete <ResourceID> <OpenVikingAccountID> --yes`.
 
 Never use `--yes` on the first deletion step. Stop if either confirmation is
-missing or the repeated AccountID does not match exactly.
+missing or the repeated OpenVikingAccountID does not match exactly.
 
 ## Creating a collection
 
@@ -207,9 +207,8 @@ The returned `ApiKey` is the library's **data-plane** key. Use it as
   library.
 - `--account-id` applies to `api-key`, `usage`, and every `user *` command; omitting
   it selects account `default`. `usage --user-id <UserID>` is valid without it.
-- Scoped usage omits both `EstimatedCosts` and `EstimatedBilling`; `get_usage` maps
-  account scope to `OpenVikingAccountID` internally. Treat account-list
-  `CreateTime` as opaque.
+- Scoped usage omits both `EstimatedCosts` and `EstimatedBilling`. Treat
+  account-list `CreateTime` as opaque.
 - Extra headers: pass `-H 'Key: Value'` (repeatable) or set `VIKING_EXTRA_HEADERS`
-  to a comma-separated `Key: Value` list — e.g. `-H 'x-tt-env: lujiakun'` for
+  to a comma-separated `Key: Value` list — e.g. `-H 'x-tt-env: <swimlane>'` for
   swim-lane routing. `Authorization` / `Content-Type` are protected and ignored.

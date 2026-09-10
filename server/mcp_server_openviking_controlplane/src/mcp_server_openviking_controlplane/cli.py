@@ -91,7 +91,7 @@ def main_callback(
     header: Optional[List[str]] = typer.Option(
         None, "--header", "-H",
         help="Extra request header as 'Key: Value'; repeatable. Merged over "
-             "VIKING_EXTRA_HEADERS (CLI wins). E.g. -H 'x-tt-env: lujiakun' to "
+             "VIKING_EXTRA_HEADERS (CLI wins). E.g. -H 'x-tt-env: <swimlane>' to "
              "route into a swim-lane.",
     ),
     output: OutputMode = typer.Option(
@@ -496,7 +496,7 @@ def account_list_cmd(
     keyword: Optional[str] = typer.Option(
         None,
         "--keyword",
-        help="Filter data spaces by AccountID substring.",
+        help="Filter data spaces by OpenVikingAccountID substring.",
     ),
     page: int = typer.Option(1, min=1, help="Page number (1-based)."),
     limit: int = typer.Option(20, min=1, max=200, help="Data spaces per page."),
@@ -524,7 +524,7 @@ def account_create_cmd(
     resource_id: str = typer.Argument(..., help="Target library ResourceID."),
     account_id: str = typer.Argument(
         ...,
-        help=f"AccountID for the new data space. {ACCOUNT_ID_RULES}",
+        help=f"OpenVikingAccountID for the new data space. {ACCOUNT_ID_RULES}",
     ),
 ):
     """Create a data space; the backend also creates its default admin."""
@@ -539,7 +539,7 @@ def account_create_cmd(
 def account_delete_cmd(
     ctx: typer.Context,
     resource_id: str = typer.Argument(..., help="Target library ResourceID."),
-    account_id: str = typer.Argument(..., help="AccountID of the data space to delete."),
+    account_id: str = typer.Argument(..., help="OpenVikingAccountID of the data space to delete."),
     yes: bool = typer.Option(False, "--yes", "-y", help="Skip the confirmation prompt."),
 ):
     """Delete a data space and everything isolated inside it (irreversible)."""

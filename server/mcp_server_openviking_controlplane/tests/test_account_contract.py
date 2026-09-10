@@ -22,7 +22,7 @@ class AccountClientContractTest(unittest.TestCase):
         with patch.object(
             self.client,
             "_request",
-            return_value={"Success": True, "AccountID": "team.alpha"},
+            return_value={"Success": True, "OpenVikingAccountID": "team.alpha"},
         ) as request:
             result = self.client.create_account(
                 "ov-example",
@@ -30,12 +30,12 @@ class AccountClientContractTest(unittest.TestCase):
                 extra={"TraceTag": "test"},
             )
 
-        self.assertEqual(result["AccountID"], "team.alpha")
+        self.assertEqual(result["OpenVikingAccountID"], "team.alpha")
         request.assert_called_once_with(
             "CreateOpenVikingAccount",
             {
                 "ResourceID": "ov-example",
-                "AccountID": "team.alpha",
+                "OpenVikingAccountID": "team.alpha",
                 "TraceTag": "test",
             },
         )
@@ -103,7 +103,7 @@ class AccountClientContractTest(unittest.TestCase):
 
         request.assert_called_once_with(
             "DeleteOpenVikingAccount",
-            {"ResourceID": "ov-example", "AccountID": "team-alpha"},
+            {"ResourceID": "ov-example", "OpenVikingAccountID": "team-alpha"},
         )
 
     def test_account_id_validation_rejects_invalid_values(self):
@@ -168,7 +168,7 @@ class AccountClientContractTest(unittest.TestCase):
             (
                 lambda: self.client.get_user_access("ov-example", account_id="team"),
                 "GetOpenVikingCollectionUserAccess",
-                {"ResourceID": "ov-example", "AccountID": "team"},
+                {"ResourceID": "ov-example", "OpenVikingAccountID": "team"},
             ),
             (
                 lambda: self.client.list_collection_users(
@@ -179,7 +179,7 @@ class AccountClientContractTest(unittest.TestCase):
                     "ResourceID": "ov-example",
                     "Page": 1,
                     "Limit": 20,
-                    "AccountID": "team",
+                    "OpenVikingAccountID": "team",
                 },
             ),
             (
@@ -187,7 +187,7 @@ class AccountClientContractTest(unittest.TestCase):
                     "ov-example", "alice", account_id="team"
                 ),
                 "RegisterOpenVikingUser",
-                {"ResourceID": "ov-example", "UserID": "alice", "AccountID": "team"},
+                {"ResourceID": "ov-example", "UserID": "alice", "OpenVikingAccountID": "team"},
             ),
             (
                 lambda: self.client.update_user(
@@ -198,7 +198,7 @@ class AccountClientContractTest(unittest.TestCase):
                     "ResourceID": "ov-example",
                     "UserID": "alice",
                     "RegenerateKey": True,
-                    "AccountID": "team",
+                    "OpenVikingAccountID": "team",
                 },
             ),
             (
@@ -206,7 +206,7 @@ class AccountClientContractTest(unittest.TestCase):
                     "ov-example", "alice", account_id="team"
                 ),
                 "DeleteOpenVikingUser",
-                {"ResourceID": "ov-example", "UserID": "alice", "AccountID": "team"},
+                {"ResourceID": "ov-example", "UserID": "alice", "OpenVikingAccountID": "team"},
             ),
         )
         for call, action, body in calls:
@@ -235,11 +235,11 @@ class AccountClientContractTest(unittest.TestCase):
             with self.subTest(call=call, value="blank"):
                 with patch.object(self.client, "_request", return_value={}) as request:
                     call("   ")
-                self.assertNotIn("AccountID", request.call_args.args[1])
+                self.assertNotIn("OpenVikingAccountID", request.call_args.args[1])
             with self.subTest(call=call, value="trimmed"):
                 with patch.object(self.client, "_request", return_value={}) as request:
                     call(" team ")
-                self.assertEqual(request.call_args.args[1]["AccountID"], "team")
+                self.assertEqual(request.call_args.args[1]["OpenVikingAccountID"], "team")
 
     def test_existing_actions_reject_invalid_account_id_before_request(self):
         calls = (
@@ -359,7 +359,7 @@ class AccountCliContractTest(unittest.TestCase):
     def test_account_create_forwards_identifiers(self):
         with patch(
             "mcp_server_openviking_controlplane.cli.ControlPlaneClient.create_account",
-            return_value={"Success": True, "AccountID": "team"},
+            return_value={"Success": True, "OpenVikingAccountID": "team"},
         ) as create_account:
             result = self.runner.invoke(
                 app,
